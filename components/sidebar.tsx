@@ -58,14 +58,14 @@ const iconMap: { [key: string]: any } = {
 
 // Mapeo de rutas por nombre del módulo
 const routeMap: { [key: string]: string } = {
-  'DASHBOARD': '/dashboard',
-  'SOCIOS': '/members',
-  'FACTURACION': '/billing',
-  'TESORERIA': '/movements',
-  'CAJAS': '/cash-box',
-  'CONTABILIDAD': '/accounting',
-  'ADMINISTRACION': '/admin',
-  'SEGURIDAD': '/security'
+  'DASHBOARD': '/modules/dashboard',
+  'SOCIOS': '/modules/members',
+  'FACTURACION': '/modules/billing',
+  'TESORERIA': '/modules/movements',
+  'CAJAS': '/modules/cash-box',
+  'CONTABILIDAD': '/modules/accounting',
+  'ADMINISTRACION': '/modules/admin',
+  'SEGURIDAD': '/modules/security'
 }
 
 export function Sidebar({ activeModule, setActiveModule, isOpen, setIsOpen }: SidebarProps) {

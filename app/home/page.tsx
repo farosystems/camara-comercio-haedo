@@ -61,13 +61,15 @@ export default function HomePage() {
   }
 
   const routeMap: { [key: string]: string } = {
-    'DASHBOARD': '/dashboard',
-    'SOCIOS': '/members',
-    'FACTURACION': '/billing',
-    'MOVIMIENTOS': '/movements',
-    'CONTABILIDAD': '/accounting',
-    'ADMINISTRACION': '/admin',
-    'SEGURIDAD': '/security'
+    'DASHBOARD': '/modules/dashboard',
+    'SOCIOS': '/modules/members',
+    'FACTURACION': '/modules/billing',
+    'TESORERIA': '/modules/movements',
+    'MOVIMIENTOS': '/modules/movements',
+    'CAJAS': '/modules/cash-box',
+    'CONTABILIDAD': '/modules/accounting',
+    'ADMINISTRACION': '/modules/admin',
+    'SEGURIDAD': '/modules/security'
   }
 
   if (loading) {

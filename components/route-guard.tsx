@@ -16,7 +16,7 @@ export function RouteGuard({ children, moduleName }: RouteGuardProps) {
 
   useEffect(() => {
     if (!loading && !hasPermission) {
-      router.push('/dashboard');
+      router.push('/home');
     }
   }, [hasPermission, loading, router]);
 
