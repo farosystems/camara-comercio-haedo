@@ -52,11 +52,11 @@ INSERT INTO cargos (nombre, tipo, monto, descripcion, frecuencia, activo) VALUES
 -- Insertar movimientos de socios
 INSERT INTO movimientos_socios (fk_id_socio, fecha, tipo, concepto, monto, comprobante, saldo, estado, metodo_pago, referencia, fecha_vencimiento, fk_id_cargo) VALUES
 (1, '2025-01-15', 'Cargo', 'Cuota Social - Enero 2025', 5000.00, 'FAC-001-2025', 5000.00, 'Pendiente', NULL, NULL, '2025-02-15', 1),
-(1, '2025-01-20', 'Pago', 'Pago Factura FAC-001-2025', 5000.00, 'PAG-001-2025', 0.00, 'Pagado', 'Transferencia', 'TRF-001', NULL, NULL),
+(1, '2025-01-20', 'Pago', 'Pago Factura FAC-001-2025', 5000.00, 'PAG-001-2025', 0.00, 'Cobrada', 'Transferencia', 'TRF-001', NULL, NULL),
 (2, '2025-01-15', 'Cargo', 'Cuota Social - Enero 2025', 5000.00, 'FAC-002-2025', 5000.00, 'Pendiente', NULL, NULL, '2025-02-15', 1),
-(3, '2025-01-15', 'Cargo', 'Cuota Social - Enero 2025', 5000.00, 'FAC-003-2025', 5000.00, 'Vencido', NULL, NULL, '2025-02-15', 1),
+(3, '2025-01-15', 'Cargo', 'Cuota Social - Enero 2025', 5000.00, 'FAC-003-2025', 5000.00, 'Vencida', NULL, NULL, '2025-02-15', 1),
 (4, '2025-01-15', 'Cargo', 'Cuota Social - Enero 2025', 5000.00, 'FAC-004-2025', 5000.00, 'Pendiente', NULL, NULL, '2025-02-15', 1),
-(2, '2025-01-25', 'Pago', 'Pago parcial FAC-002-2025', 2500.00, 'PAG-002-2025', 2500.00, 'Pagado', 'Efectivo', NULL, NULL, NULL);
+(2, '2025-01-25', 'Pago', 'Pago parcial FAC-002-2025', 2500.00, 'PAG-002-2025', 2500.00, 'Cobrada', 'Efectivo', NULL, NULL, NULL);
 
 -- Insertar pedidos
 INSERT INTO pedidos (id, fk_id_socio, fk_id_proveedor, fecha, total, estado, metodo_pago, observaciones) VALUES
@@ -79,6 +79,9 @@ INSERT INTO pagos (id, fk_id_socio, fecha, monto, metodo, fk_id_factura, referen
 -- =====================================================
 -- FIN DEL SCRIPT
 -- =====================================================
+
+
+
 
 
 

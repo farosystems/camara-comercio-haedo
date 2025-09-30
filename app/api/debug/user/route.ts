@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId } = auth();
     console.log('Clerk userId:', userId);
     
     if (!userId) {
@@ -59,6 +59,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Error interno' }, { status: 500 });
   }
 }
+
+
+
 
 
 

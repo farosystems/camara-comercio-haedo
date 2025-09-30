@@ -6,7 +6,7 @@ export async function GET() {
   try {
     console.log('API route iniciada')
     
-    const { userId } = await auth()
+    const { userId } = auth()
     console.log('Auth completado, userId:', userId)
     
     if (!userId) {

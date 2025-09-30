@@ -2,18 +2,118 @@ import { createClient } from '@/lib/supabase'
 import { Usuario } from '@/lib/supabase'
 
 // =====================================================
+// INTERFACES PARA MÓDULO DE MOVIMIENTOS
+// =====================================================
+
+export interface Cuenta {
+  id: number
+  nombre: string
+  descripcion: string | null
+  tipo: 'Bancaria' | 'Efectivo' | 'Otro'
+  numero_cuenta: string | null
+  banco: string | null
+  activo: boolean
+  saldo_inicial: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ConceptoMovimiento {
+  id: number
+  nombre: string
+  descripcion: string | null
+  tipo: 'Ingreso' | 'Egreso'
+  categoria: string | null
+  activo: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface MovimientoBancario {
+  id: number
+  fk_id_cuenta: number
+  fecha: string
+  concepto_ingreso: string
+  apellido_nombres: string | null
+  fk_id_socio: number | null
+  numero_comprobante: string | null
+  nota: string | null
+  fk_id_concepto: number
+  egresos_fines_generales: number
+  egresos_fines_especificos: number
+  ingresos: number
+  saldo_cuenta: number
+  comprobante_path: string | null
+  observaciones: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MovimientoEfectivo {
+  id: number
+  fk_id_cuenta: number
+  fecha: string
+  concepto_ingreso: string
+  apellido_nombres: string | null
+  fk_id_socio: number | null
+  numero_comprobante: string | null
+  nota: string | null
+  fk_id_concepto: number
+  egresos_fines_generales: number
+  egresos_fines_especificos: number
+  ingresos: number
+  saldo_cuenta: number
+  comprobante_path: string | null
+  observaciones: string | null
+  created_at: string
+  updated_at: string
+}
+
+// =====================================================
 // FUNCIONES PARA USUARIOS (ya existentes)
 // =====================================================
 
 export async function getUsuarios(): Promise<Usuario[]> {
   const supabase = createClient()
-  const { data, error } = await supabase
+  
+  // Primero obtener todos los usuarios
+  const { data: usuarios, error: usuariosError } = await supabase
     .from('usuarios')
     .select('*')
     .order('nombre')
   
-  if (error) throw error
-  return data || []
+  if (usuariosError) throw usuariosError
+  if (!usuarios) return []
+  
+  // Luego obtener todos los socios
+  const { data: socios, error: sociosError } = await supabase
+    .from('socios')
+    .select('id, nombre_socio, fk_id_usuario')
+  
+  if (sociosError) throw sociosError
+  
+  // Combinar los datos manualmente
+  const usuariosConSocios = usuarios.map(usuario => {
+    const sociosDelUsuario = socios?.filter(socio => socio.fk_id_usuario === usuario.id) || []
+    
+    // Debug: Log para ver qué está pasando
+    if (usuario.rol === 'socio') {
+      console.log(`Usuario ${usuario.nombre} (ID: ${usuario.id}) - Socios encontrados:`, sociosDelUsuario)
+    }
+    
+    return {
+      ...usuario,
+      socios: sociosDelUsuario.map(socio => ({
+        id: socio.id,
+        razon_social: socio.nombre_socio
+      }))
+    }
+  })
+  
+  // Debug: Log general de socios
+  console.log('Todos los socios obtenidos:', socios)
+  
+  return usuariosConSocios
 }
 
 export async function getEstadisticasUsuarios() {
@@ -65,25 +165,34 @@ export async function actualizarUsuario(id: number, userData: Partial<Usuario>) 
 
 export interface Socio {
   id: number
+  nombre_socio: string
   razon_social: string
-  cuit: string
-  tipo_sociedad: string
-  fecha_constitucion: string | null
-  registro_mercantil: string | null
-  direccion_fiscal: string
-  email: string
-  telefono: string
-  web: string | null
-  condicion_fiscal: string
-  datos_bancarios: string | null
-  criterio_facturacion: string
-  representante_legal: string
-  dni_representante: string
-  cargo_representante: string
-  actividad_economica: string | null
-  logo_path: string | null
-  status: string
+  nombre_fantasia: string | null
+  domicilio_comercial: string
+  nro_comercial: string | null
+  telefono_comercial: string | null
+  celular: string | null
+  mail: string
+  comercializa: boolean
+  quiero_comercializar: boolean
+  es_comercializador: boolean
+  rubro: string | null
   fecha_alta: string
+  fecha_baja: string | null
+  tipo_socio: 'Activo' | 'Adherente' | 'Vitalicio'
+  fecha_nacimiento: string | null
+  documento: string
+  estado_civil: string | null
+  nacionalidad: string
+  domicilio_personal: string | null
+  nro_personal: string | null
+  localidad: string | null
+  codigo_postal: string | null
+  telefono_fijo: string | null
+  cuit: string
+  habilitado: boolean
+  status: string
+  fk_id_usuario: number | null
   created_at: string
   updated_at: string
 }
@@ -93,7 +202,7 @@ export async function getSocios(): Promise<Socio[]> {
   const { data, error } = await supabase
     .from('socios')
     .select('*')
-    .order('razon_social')
+    .order('nombre_socio')
   
   if (error) throw error
   return data || []
@@ -124,112 +233,6 @@ export async function actualizarSocio(id: number, socioData: Partial<Socio>) {
   return data
 }
 
-// =====================================================
-// FUNCIONES PARA PROVEEDORES
-// =====================================================
-
-export interface Proveedor {
-  id: number
-  nombre: string
-  contacto: string
-  telefono: string
-  email: string
-  cuit: string
-  direccion: string | null
-  metodos_pago: any
-  status: string
-  created_at: string
-  updated_at: string
-}
-
-export async function getProveedores(): Promise<Proveedor[]> {
-  const supabase = createClient()
-  const { data, error } = await supabase
-    .from('proveedores')
-    .select('*')
-    .order('nombre')
-  
-  if (error) throw error
-  return data || []
-}
-
-export async function crearProveedor(proveedorData: Omit<Proveedor, 'id' | 'created_at' | 'updated_at'>) {
-  const supabase = createClient()
-  const { data, error } = await supabase
-    .from('proveedores')
-    .insert(proveedorData)
-    .select()
-    .single()
-  
-  if (error) throw error
-  return data
-}
-
-export async function actualizarProveedor(id: number, proveedorData: Partial<Proveedor>) {
-  const supabase = createClient()
-  const { data, error } = await supabase
-    .from('proveedores')
-    .update(proveedorData)
-    .eq('id', id)
-    .select()
-    .single()
-  
-  if (error) throw error
-  return data
-}
-
-// Función para verificar si un proveedor tiene dependencias
-export async function verificarDependenciasProveedor(id: number) {
-  const supabase = createClient()
-  
-  // Verificar listas de precios
-  const { data: listasPrecios, error: errorListas } = await supabase
-    .from('listas_precios')
-    .select('id, nombre')
-    .eq('fk_id_proveedor', id)
-  
-  if (errorListas) throw errorListas
-  
-  // Verificar productos (si tienen listas de precios asociadas)
-  const { data: productos, error: errorProductos } = await supabase
-    .from('productos')
-    .select('id, nombre, fk_id_lista_precio')
-    .not('fk_id_lista_precio', 'is', null)
-  
-  if (errorProductos) throw errorProductos
-  
-  // Filtrar productos que usan listas de precios de este proveedor
-  const productosAsociados = productos?.filter(p => 
-    listasPrecios?.some(lp => lp.id === p.fk_id_lista_precio)
-  ) || []
-  
-  return {
-    tieneListasPrecios: (listasPrecios?.length || 0) > 0,
-    listasPrecios: listasPrecios || [],
-    tieneProductosAsociados: productosAsociados.length > 0,
-    productosAsociados: productosAsociados
-  }
-}
-
-export async function eliminarProveedor(id: number) {
-  const supabase = createClient()
-  
-  // Verificar dependencias antes de eliminar
-  const dependencias = await verificarDependenciasProveedor(id)
-  
-  if (dependencias.tieneListasPrecios || dependencias.tieneProductosAsociados) {
-    throw new Error(`No se puede eliminar el proveedor porque tiene dependencias:
-      - Listas de precios: ${dependencias.listasPrecios.length}
-      - Productos asociados: ${dependencias.productosAsociados.length}`)
-  }
-  
-  const { error } = await supabase
-    .from('proveedores')
-    .delete()
-    .eq('id', id)
-  
-  if (error) throw error
-}
 
 // =====================================================
 // FUNCIONES PARA PRODUCTOS
@@ -413,34 +416,9 @@ export async function actualizarProducto(id: number, productoData: Partial<Produ
   return producto
 }
 
-// Función para verificar si un producto tiene dependencias
-export async function verificarDependenciasProducto(id: number) {
-  const supabase = createClient()
-  
-  // Verificar si el producto está en pedidos
-  const { data: pedidos, error } = await supabase
-    .from('items_pedido')
-    .select('id, fk_id_pedido')
-    .eq('fk_id_producto', id)
-  
-  if (error) throw error
-  
-  return {
-    tienePedidos: (pedidos?.length || 0) > 0,
-    pedidos: pedidos || []
-  }
-}
 
 export async function eliminarProducto(id: number) {
   const supabase = createClient()
-  
-  // Verificar dependencias antes de eliminar
-  const dependencias = await verificarDependenciasProducto(id)
-  
-  if (dependencias.tienePedidos) {
-    throw new Error(`No se puede eliminar el producto porque está en pedidos:
-      - Pedidos asociados: ${dependencias.pedidos.length}`)
-  }
   
   const { error } = await supabase
     .from('productos')
@@ -456,7 +434,6 @@ export async function eliminarProducto(id: number) {
 
 export interface ListaPrecio {
   id: number
-  fk_id_proveedor: number
   nombre: string
   fecha_carga: string
   status: 'Activa' | 'Inactiva' | 'Vencida'
@@ -539,83 +516,6 @@ export async function obtenerPrecioProducto(listaPrecioId: number, productoId: n
   return data
 }
 
-// Función para obtener productos con precios de un proveedor
-export async function getProductosConPrecios(proveedorId: number): Promise<any[]> {
-  const supabase = createClient()
-  
-  console.log('Buscando listas de precios para proveedor ID:', proveedorId)
-  
-  // Primero, verificar si existen listas de precios para este proveedor
-  const { data: listas, error: errorListas } = await supabase
-    .from('listas_precios')
-    .select('id, nombre, status, fk_id_proveedor')
-    .eq('fk_id_proveedor', proveedorId)
-  
-  if (errorListas) {
-    console.error('Error consultando listas de precios:', errorListas)
-    throw errorListas
-  }
-  
-  console.log('Listas de precios encontradas:', listas)
-  
-  // Filtrar solo las listas activas
-  const listasActivas = listas?.filter(lista => lista.status === 'Activa') || []
-  console.log('Listas activas:', listasActivas)
-  
-  if (listasActivas.length === 0) {
-    console.log('No se encontraron listas de precios activas para el proveedor:', proveedorId)
-    return []
-  }
-  
-  // Para cada lista activa, obtener sus productos
-  const productosFormateados: any[] = []
-  
-  for (const lista of listasActivas) {
-    console.log('Procesando lista:', lista.nombre)
-    
-    // Obtener items de la lista de precios
-    const { data: items, error: errorItems } = await supabase
-      .from('items_lista_precios')
-      .select(`
-        precio,
-        descuento,
-        fk_id_producto,
-        productos (
-          id,
-          codigo,
-          nombre,
-          categoria,
-          marca,
-          descripcion,
-          activo
-        )
-      `)
-      .eq('fk_id_lista_precio', lista.id)
-    
-    if (errorItems) {
-      console.error('Error consultando items de lista:', errorItems)
-      continue
-    }
-    
-    console.log('Items encontrados para lista', lista.nombre, ':', items?.length || 0)
-    
-    // Procesar cada item
-    items?.forEach((item: any) => {
-      if (item.productos && item.productos.activo === true) {
-        productosFormateados.push({
-          ...item.productos,
-          precio: item.precio,
-          descuento: item.descuento,
-          lista_precio_id: lista.id,
-          lista_precio_nombre: lista.nombre
-        })
-      }
-    })
-  }
-  
-  console.log('Total de productos formateados:', productosFormateados.length)
-  return productosFormateados
-}
 
 export async function crearListaPrecio(listaData: Omit<ListaPrecio, 'id' | 'created_at' | 'updated_at'>) {
   const supabase = createClient()
@@ -691,7 +591,6 @@ export interface CondicionCompra {
   descuento: number
   recargo: number
   dias_pago: number
-  fk_id_proveedor: number | null
   activo: boolean
   created_at: string
   updated_at: string
@@ -757,34 +656,9 @@ export async function actualizarCondicionCompra(id: number, condicionData: Parti
   return data
 }
 
-// Función para verificar si una condición de compra tiene dependencias
-export async function verificarDependenciasCondicionCompra(id: number) {
-  const supabase = createClient()
-  
-  // Verificar si la condición está en órdenes de compra
-  const { data: ordenes, error } = await supabase
-    .from('ordenes_compra')
-    .select('id, numero_orden')
-    .eq('fk_id_condicion_compra', id)
-  
-  if (error) throw error
-  
-  return {
-    tieneOrdenes: (ordenes?.length || 0) > 0,
-    ordenes: ordenes || []
-  }
-}
 
 export async function eliminarCondicionCompra(id: number) {
   const supabase = createClient()
-  
-  // Verificar dependencias antes de eliminar
-  const dependencias = await verificarDependenciasCondicionCompra(id)
-  
-  if (dependencias.tieneOrdenes) {
-    throw new Error(`No se puede eliminar la condición de compra porque está en órdenes de compra:
-      - Órdenes asociadas: ${dependencias.ordenes.length}`)
-  }
   
   const { error } = await supabase
     .from('condiciones_compra')
@@ -905,37 +779,6 @@ export async function crearMovimientoSocio(movimientoData: Omit<MovimientoSocio,
   return data
 }
 
-// =====================================================
-// FUNCIONES PARA PEDIDOS
-// =====================================================
-
-export interface Pedido {
-  id: string
-  fk_id_socio: number
-  fk_id_proveedor: number
-  fecha: string
-  total: number
-  estado: string
-  fk_id_condicion_compra: number
-  observaciones: string | null
-  created_at: string
-  updated_at: string
-}
-
-export async function getPedidos(): Promise<Pedido[]> {
-  const supabase = createClient()
-  const { data, error } = await supabase
-    .from('pedidos')
-    .select(`
-      *,
-      socios!inner(razon_social),
-      proveedores!inner(nombre)
-    `)
-    .order('fecha', { ascending: false })
-  
-  if (error) throw error
-  return data || []
-}
 
 // Función para obtener el socio asociado al usuario logueado
 export async function getSocioByUserEmail(email: string): Promise<Socio | null> {
@@ -1020,38 +863,6 @@ export async function getCurrentUser(): Promise<Usuario | null> {
   return usuario
 }
 
-export async function crearPedido(pedidoData: Omit<Pedido, 'id' | 'created_at' | 'updated_at'>) {
-  const supabase = createClient()
-  
-  // Generar ID único para el pedido (máximo 20 caracteres)
-  const timestamp = Date.now().toString().slice(-8) // Últimos 8 dígitos del timestamp
-  const randomSuffix = Math.random().toString(36).substr(2, 4) // 4 caracteres aleatorios
-  const pedidoId = `PED-${timestamp}-${randomSuffix}` // Máximo 17 caracteres
-  
-  const { data, error } = await supabase
-    .from('pedidos')
-    .insert({
-      ...pedidoData,
-      id: pedidoId
-    })
-    .select()
-    .single()
-  
-  if (error) throw error
-  return data
-}
-
-export async function actualizarPedido(id: string, pedidoData: Partial<Pedido>) {
-  const supabase = createClient()
-  const { data, error } = await supabase
-    .from('pedidos')
-    .update(pedidoData)
-    .eq('id', id)
-    .single()
-  
-  if (error) throw error
-  return data
-}
 
 // =====================================================
 // FUNCIONES PARA FACTURAS
@@ -1087,15 +898,96 @@ export async function getFacturas(): Promise<Factura[]> {
 // FUNCIONES PARA PAGOS
 // =====================================================
 
+export interface CuentaTesoreria {
+  id: number
+  nombre: string
+  tipo: 'Efectivo' | 'Banco' | 'Tarjeta' | 'Transferencia' | 'Cheque' | 'Digital' | 'Otro'
+  descripcion: string | null
+  numero_cuenta: string | null
+  banco: string | null
+  activa: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface Pago {
   id: string
   fk_id_socio: number
   fecha: string
   monto: number
-  metodo: string
-  fk_id_factura: string | null
+  fk_id_movimiento: number | null
+  fk_id_cuenta_tesoreria: number | null
   referencia: string | null
   created_at: string
+}
+
+// =====================================================
+// FUNCIONES PARA CUENTAS DE TESORERÍA
+// =====================================================
+
+export async function getCuentasTesoreria(): Promise<CuentaTesoreria[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('cuentas_tesoreria')
+    .select('*')
+    .eq('activa', true)
+    .order('tipo, nombre')
+
+  if (error) {
+    console.error('Error fetching cuentas tesoreria:', error)
+    throw error
+  }
+
+  return data || []
+}
+
+export async function getCuentaTesoreria(id: number): Promise<CuentaTesoreria | null> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('cuentas_tesoreria')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (error) {
+    console.error('Error fetching cuenta tesoreria:', error)
+    throw error
+  }
+
+  return data
+}
+
+export async function crearCuentaTesoreria(cuenta: Omit<CuentaTesoreria, 'id' | 'created_at' | 'updated_at'>): Promise<CuentaTesoreria> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('cuentas_tesoreria')
+    .insert(cuenta)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error creating cuenta tesoreria:', error)
+    throw error
+  }
+
+  return data
+}
+
+export async function actualizarCuentaTesoreria(id: number, updates: Partial<Omit<CuentaTesoreria, 'id' | 'created_at' | 'updated_at'>>): Promise<CuentaTesoreria> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('cuentas_tesoreria')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error updating cuenta tesoreria:', error)
+    throw error
+  }
+
+  return data
 }
 
 export async function getPagos(): Promise<Pago[]> {
@@ -1104,10 +996,11 @@ export async function getPagos(): Promise<Pago[]> {
     .from('pagos')
     .select(`
       *,
-      socios!inner(razon_social)
+      socios!inner(razon_social),
+      cuentas_tesoreria(nombre, tipo)
     `)
     .order('fecha', { ascending: false })
-  
+
   if (error) throw error
   return data || []
 }

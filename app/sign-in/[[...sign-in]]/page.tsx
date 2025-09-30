@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useSignIn } from "@clerk/nextjs";
+import { useState, useEffect } from "react";
+import { useSignIn, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
@@ -12,7 +12,15 @@ export default function SignInPage() {
   const [error, setError] = useState("");
   
   const { signIn, setActive } = useSignIn();
+  const { isSignedIn, isLoaded } = useUser();
   const router = useRouter();
+
+  // Si el usuario ya está autenticado, redirigir inmediatamente
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      router.replace("/home");
+    }
+  }, [isLoaded, isSignedIn, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +41,7 @@ export default function SignInPage() {
 
       if (result?.status === "complete") {
         await setActive({ session: result.createdSessionId });
-        router.push("/home");
+        router.replace("/home");
       } else {
         setError("Error al iniciar sesión. Verifica tus credenciales.");
       }
@@ -43,6 +51,18 @@ export default function SignInPage() {
       setIsLoading(false);
     }
   };
+
+  // Mostrar loading mientras se verifica la autenticación
+  if (!isLoaded || (isLoaded && isSignedIn)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Verificando sesión...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex">
@@ -70,7 +90,7 @@ export default function SignInPage() {
           
           {/* Título principal */}
           <h1 className="text-5xl font-bold mb-4 text-center">
-            Mar & Sierras
+            Camara de Comercio Haedo
           </h1>
           <p className="text-xl text-blue-100 mb-8 max-w-md text-center mx-auto">
             Sistema de Gestión Integral para Agrupaciones
@@ -116,7 +136,7 @@ export default function SignInPage() {
               className="rounded-xl mx-auto mb-4"
             />
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Mar & Sierras
+              1
             </h2>
           </div>
 

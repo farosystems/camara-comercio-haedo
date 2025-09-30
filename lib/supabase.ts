@@ -3,10 +3,20 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://your-project.supabase.co'
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'your-anon-key'
 
-export const supabase = createSupabaseClient(supabaseUrl, supabaseAnonKey)
+// Crear una instancia singleton para evitar múltiples GoTrueClient
+let supabaseInstance: ReturnType<typeof createSupabaseClient> | null = null
+
+export const supabase = getSupabaseClient()
 
 export function createClient() {
-  return createSupabaseClient(supabaseUrl, supabaseAnonKey)
+  return getSupabaseClient()
+}
+
+function getSupabaseClient() {
+  if (!supabaseInstance) {
+    supabaseInstance = createSupabaseClient(supabaseUrl, supabaseAnonKey)
+  }
+  return supabaseInstance
 }
 
 // Tipos TypeScript basados en el esquema de Supabase
@@ -23,6 +33,10 @@ export interface Usuario {
   status: 'Activo' | 'Inactivo' | 'Bloqueado'
   ultimo_acceso: string | null
   updated_at: string
+  socios?: {
+    id: number
+    razon_social: string
+  }[]
 }
 
 export interface Modulo {

@@ -19,10 +19,9 @@ export default function ModulesLayout({
   useEffect(() => {
     const moduleMap: { [key: string]: string } = {
       "/dashboard": "dashboard",
-      "/providers": "providers",
       "/members": "members",
       "/billing": "billing",
-      "/orders": "orders",
+      "/movements": "movements",
       "/accounting": "accounting",
       "/admin": "admin",
       "/security": "security",

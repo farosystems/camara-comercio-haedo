@@ -19,7 +19,7 @@ interface Permiso {
 
 export async function getCurrentUser() {
   try {
-    const { userId } = await auth();
+    const { userId } = auth();
     console.log('Clerk userId:', userId);
     
     if (!userId) {

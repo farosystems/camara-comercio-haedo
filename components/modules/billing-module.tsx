@@ -309,7 +309,7 @@ export function BillingModule() {
       monto: -Math.abs(paymentData.amount), // Los pagos son negativos
       comprobante: `PAG-${String(Date.now()).slice(-6)}-${new Date().getFullYear()}`,
       saldo: calculateNewBalance(selectedMemberForPayment.id, paymentData.amount),
-      estado: "Pagado",
+      estado: "Cobrada",
       metodo_pago: paymentData.paymentMethod,
       referencia: paymentData.reference,
       fecha_vencimiento: null,
@@ -457,7 +457,7 @@ export function BillingModule() {
             className="bg-black hover:bg-gray-800 text-white"
           >
             <Receipt className="mr-2 h-4 w-4" />
-            Generar Facturas
+            Generar Cuotas
           </Button>
         </div>
       </div>
@@ -465,7 +465,6 @@ export function BillingModule() {
       <Tabs defaultValue="movements" className="space-y-4">
         <TabsList className="bg-gray-100 p-1 rounded-lg">
           <TabsTrigger value="movements" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm">Movimientos</TabsTrigger>
-          <TabsTrigger value="charges" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm">Cargos Definidos</TabsTrigger>
           <TabsTrigger value="members" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm">Estado de Cuentas</TabsTrigger>
           <TabsTrigger value="reports" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm">Reportes</TabsTrigger>
         </TabsList>
@@ -537,11 +536,11 @@ export function BillingModule() {
                       <TableCell>
                         <Badge 
                           variant={
-                            movement.estado === "Pagado" ? "default" : 
+                            movement.estado === "Cobrada" ? "default" : 
                             movement.estado === "Pendiente" ? "secondary" : "destructive"
                           }
                           className={
-                            movement.estado === "Pagado" ? "bg-green-100 text-green-800" :
+                            movement.estado === "Cobrada" ? "bg-green-100 text-green-800" :
                             movement.estado === "Pendiente" ? "bg-yellow-100 text-yellow-800" :
                             "bg-red-100 text-red-800"
                           }
@@ -588,122 +587,6 @@ export function BillingModule() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="charges" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Cargos Definidos</CardTitle>
-                  <CardDescription>Configuración de cargos fijos y variables para aplicar a los socios</CardDescription>
-                </div>
-                <Button onClick={handleNewCargo} className="bg-black hover:bg-gray-800 text-white">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nuevo Cargo
-                </Button>
-              </div>
-              <div className="relative mt-4">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                <Input
-                  placeholder="Buscar cargos..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-64"
-                />
-              </div>
-            </CardHeader>
-            <CardContent>
-          {loading ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-              <p className="mt-2 text-muted-foreground">Cargando cargos...</p>
-            </div>
-          ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Monto</TableHead>
-                  <TableHead>Frecuencia</TableHead>
-                  <TableHead>Descripción</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                {filteredCargos.map((cargo) => (
-                  <TableRow key={cargo.id}>
-                    <TableCell className="font-medium">{cargo.nombre}</TableCell>
-                    <TableCell>
-                      <Badge variant={cargo.tipo === 'Fijo' ? 'default' : 'secondary'}>
-                        {cargo.tipo}
-                      </Badge>
-                      </TableCell>
-                      <TableCell>
-                      {cargo.tipo === 'Fijo' && cargo.monto 
-                        ? `$${cargo.monto.toLocaleString()}`
-                        : 'Variable'
-                      }
-                      </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{cargo.frecuencia}</Badge>
-                      </TableCell>
-                    <TableCell className="max-w-xs truncate" title={cargo.descripcion}>
-                      {cargo.descripcion}
-                      </TableCell>
-                      <TableCell>
-                        <Badge 
-                        variant={cargo.activo ? 'default' : 'secondary'}
-                        className={cargo.activo ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}
-                      >
-                        {cargo.activo ? 'Activo' : 'Inactivo'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditCargo(cargo)}
-                          title="Editar cargo"
-                        >
-                          <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                          onClick={() => handleDeleteCargo(cargo)}
-                          title="Eliminar cargo"
-                          className="text-red-600 hover:text-red-700"
-                        >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-          )}
-          
-          {!loading && filteredCargos.length === 0 && (
-            <div className="text-center py-8">
-              <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">No hay cargos</h3>
-              <p className="text-muted-foreground mb-4">
-                {searchTerm ? 'No se encontraron cargos con ese criterio de búsqueda.' : 'Aún no se han definido cargos en el sistema.'}
-              </p>
-              {!searchTerm && (
-                <Button onClick={handleNewCargo} className="bg-black hover:bg-gray-800 text-white">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Crear primer cargo
-                          </Button>
-              )}
-                         </div>
-          )}
-              </CardContent>
-            </Card>
-        </TabsContent>
 
         <TabsContent value="members" className="space-y-4">
           <Card>

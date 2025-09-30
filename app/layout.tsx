@@ -4,6 +4,7 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { ClerkProvider } from '@clerk/nextjs'
 import { Toaster } from "@/components/ui/toaster"
+import "@/lib/suppress-headers-error"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -30,8 +31,9 @@ export default function RootLayout({
           publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY!}
           signInUrl="/sign-in"
           signUpUrl="/sign-up"
-          afterSignInUrl="/home"
-          afterSignUpUrl="/home"
+          afterSignInUrl="/"
+          afterSignUpUrl="/"
+          afterSignOutUrl="/sign-in"
         >
           {children}
           <Toaster />

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Home, Truck, Users, ShoppingCart, Calculator, Settings, Receipt, Shield, ArrowRight } from "lucide-react"
+import { Home, Users, Calculator, Settings, Receipt, Shield, ArrowRight, TrendingUp } from "lucide-react"
 
 interface Module {
   id: number
@@ -27,7 +27,6 @@ export default function HomePage() {
         const response = await fetch('/api/user/modules')
         if (response.ok) {
           const data = await response.json()
-          console.log('Módulos cargados:', data)
           setModules(data)
         }
       } catch (error) {
@@ -45,8 +44,7 @@ export default function HomePage() {
     'DASHBOARD': 'Dashboard',
     'SOCIOS': 'Socios',
     'FACTURACION': 'Facturación a Socios',
-    'PROVEEDORES': 'Proveedores',
-    'PEDIDOS': 'Pedidos',
+    'MOVIMIENTOS': 'Movimientos',
     'CONTABILIDAD': 'Cuentas Corrientes',
     'ADMINISTRACION': 'Administración',
     'SEGURIDAD': 'Seguridad por Usuario'
@@ -56,8 +54,7 @@ export default function HomePage() {
     'DASHBOARD': Home,
     'SOCIOS': Users,
     'FACTURACION': Receipt,
-    'PROVEEDORES': Truck,
-    'PEDIDOS': ShoppingCart,
+    'MOVIMIENTOS': TrendingUp,
     'CONTABILIDAD': Calculator,
     'ADMINISTRACION': Settings,
     'SEGURIDAD': Shield,
@@ -67,8 +64,7 @@ export default function HomePage() {
     'DASHBOARD': '/dashboard',
     'SOCIOS': '/members',
     'FACTURACION': '/billing',
-    'PROVEEDORES': '/providers',
-    'PEDIDOS': '/orders',
+    'MOVIMIENTOS': '/movements',
     'CONTABILIDAD': '/accounting',
     'ADMINISTRACION': '/admin',
     'SEGURIDAD': '/security'
@@ -103,7 +99,6 @@ export default function HomePage() {
           .map((module) => {
             const Icon = iconMap[module.nombre] || Home
             const route = routeMap[module.nombre] || module.ruta || '/dashboard'
-            console.log('Módulo:', module.nombre, 'Ruta mapeada:', routeMap[module.nombre], 'Ruta final:', route)
             const label = moduleNameMap[module.nombre] || module.nombre
 
             return (
@@ -158,12 +153,12 @@ export default function HomePage() {
                 <div className="text-muted-foreground">Socios Activos</div>
               </div>
               <div className="text-center">
-                <div className="font-semibold text-2xl text-green-600">23</div>
-                <div className="text-muted-foreground">Proveedores</div>
+                <div className="font-semibold text-2xl text-green-600">$45,230</div>
+                <div className="text-muted-foreground">Facturación Mensual</div>
               </div>
               <div className="text-center">
-                <div className="font-semibold text-2xl text-orange-600">45</div>
-                <div className="text-muted-foreground">Pedidos Pendientes</div>
+                <div className="font-semibold text-2xl text-orange-600">12</div>
+                <div className="text-muted-foreground">Usuarios Activos</div>
               </div>
             </div>
           </CardContent>

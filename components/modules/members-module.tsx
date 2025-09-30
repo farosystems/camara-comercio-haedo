@@ -15,10 +15,14 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Edit, Trash2, Eye, User } from "lucide-react"
+import { Plus, Edit, Trash2, Eye, User, Save, X } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Socio, getSocios } from "@/lib/supabase-admin"
 import { supabase } from "@/lib/supabase"
+import { useToast } from "@/hooks/use-toast"
+import { getArgentinaDateString, formatDateForDisplay, dateStringToInputValue } from "@/lib/date-utils"
 
 interface Usuario {
   id: number
@@ -27,38 +31,103 @@ interface Usuario {
   rol: string
 }
 
+interface TipoComercio {
+  id: number
+  nombre: string
+  descripcion: string
+  activo: boolean
+}
+
+interface Rubro {
+  id: number
+  nombre: string
+  descripcion: string
+  activo: boolean
+}
+
 export function MembersModule() {
   const [members, setMembers] = useState<Socio[]>([])
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
+  const [tiposComercio, setTiposComercio] = useState<TipoComercio[]>([])
+  const [rubros, setRubros] = useState<Rubro[]>([])
   const [loading, setLoading] = useState(true)
+  const [isRubroDialogOpen, setIsRubroDialogOpen] = useState(false)
+  const [isTipoComercioDialogOpen, setIsTipoComercioDialogOpen] = useState(false)
+  const [nuevoRubro, setNuevoRubro] = useState({ nombre: "", descripcion: "" })
+  const [nuevoTipoComercio, setNuevoTipoComercio] = useState({ nombre: "", descripcion: "" })
+  const [currentRubrosPage, setCurrentRubrosPage] = useState(1)
+  const [currentTipoComerciosPage, setCurrentTipoComerciosPage] = useState(1)
+  const [currentMembersPage, setCurrentMembersPage] = useState(1)
+  const itemsPerPage = 10
+  const membersPerPage = 15
+  const [isMigrationDialogOpen, setIsMigrationDialogOpen] = useState(false)
+  const [migrationFile, setMigrationFile] = useState<File | null>(null)
+  const [migrating, setMigrating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [searchRazonSocial, setSearchRazonSocial] = useState("")
+  const [searchTipoSocio, setSearchTipoSocio] = useState("all")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [selectedMember, setSelectedMember] = useState<Socio | null>(null)
-  const [activeTab, setActiveTab] = useState("basica")
+  const [activeTab, setActiveTab] = useState("identificacion")
+  const [saving, setSaving] = useState(false)
+  
+  // Estado del formulario actualizado con todos los nuevos campos
   const [formData, setFormData] = useState({
+    // Identificación del socio
+    nombre_socio: "",
     razon_social: "",
+    nombre_fantasia: "",
+    
+    // Domicilio comercial
+    domicilio_comercial: "",
+    nro_comercial: "",
+    
+    // Contacto comercial
+    telefono_comercial: "",
+    celular: "",
+    mail: "",
+    
+    // Comercialización
+    rubro_id: null as number | null,
+    tipo_comercio_id: null as number | null,
+    
+    // Fechas
+    fecha_alta: getArgentinaDateString(),
+    fecha_baja: "",
+    
+    // Datos personales del representante
+    fecha_nacimiento: "",
+    documento: "",
+    estado_civil: "",
+    nacionalidad: "Argentina",
+    
+    // Domicilio personal
+    domicilio_personal: "",
+    nro_personal: "",
+    localidad: "",
+    codigo_postal: "",
+    telefono_fijo: "",
+    
+    // Datos fiscales
     cuit: "",
-    tipo_sociedad: "",
-    fecha_constitucion: "",
-    email: "",
-    telefono: "",
-    web: "",
-    direccion_fiscal: "",
-    condicion_fiscal: "",
-    criterio_facturacion: "",
-    datos_bancarios: "",
-    representante_legal: "",
-    dni_representante: "",
-    cargo_representante: "",
-    actividad_economica: "",
-    registro_mercantil: "",
-    status: "Activo",
-    fk_id_usuario: null as number | null
+    
+    // Estado
+    habilitado: "",
+    tipo_socio: "Activo",
+    
+    // Usuario relacionado
+    fk_id_usuario: null as number | null,
+    password: ""
   })
+  
   const [errors, setErrors] = useState<{[key: string]: string}>({})
+  const [autoCreateUser, setAutoCreateUser] = useState(true)
+  const [userPassword, setUserPassword] = useState('')
+  const [creatingUser, setCreatingUser] = useState(false)
+  const { toast } = useToast()
 
   // Función para cargar datos de socios desde Supabase
   const cargarDatos = async () => {
@@ -77,107 +146,162 @@ export function MembersModule() {
   // Función para cargar usuarios con rol "socio"
   const cargarUsuarios = async () => {
     try {
-      console.log('Cargando usuarios con rol socio...')
-      
-      // Primero, verificar qué usuarios existen
       const { data: allUsers, error: allError } = await supabase
         .from('usuarios')
         .select('id, nombre, email, rol')
         .order('nombre')
 
       if (allError) {
-        console.error('Error cargando todos los usuarios:', allError)
+        console.error('Error cargando usuarios:', allError)
         return
       }
 
-      console.log('Todos los usuarios:', allUsers)
-
-      // Filtrar usuarios con rol "socio"
       const usuariosSocio = allUsers?.filter((user: Usuario) => user.rol === 'socio') || []
-      
-      console.log('Usuarios con rol socio:', usuariosSocio)
-      
       setUsuarios(usuariosSocio)
     } catch (err) {
       console.error('Error cargando usuarios:', err)
     }
   }
 
-  // Cargar datos de socios desde Supabase
+  // Función para cargar tipos de comercio
+  const cargarTiposComercio = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('tipo_comercios')
+        .select('*')
+        .eq('activo', true)
+        .order('nombre')
+
+      if (error) {
+        console.error('Error cargando tipos de comercio:', error)
+        return
+      }
+
+      setTiposComercio(data || [])
+    } catch (err) {
+      console.error('Error cargando tipos de comercio:', err)
+    }
+  }
+
+  // Función para cargar rubros
+  const cargarRubros = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('rubros')
+        .select('*')
+        .eq('activo', true)
+        .order('nombre')
+
+      if (error) {
+        console.error('Error cargando rubros:', error)
+        return
+      }
+
+      setRubros(data || [])
+    } catch (err) {
+      console.error('Error cargando rubros:', err)
+    }
+  }
+
   useEffect(() => {
     cargarDatos()
     cargarUsuarios()
+    cargarTiposComercio()
+    cargarRubros()
   }, [])
 
   const resetForm = () => {
     setFormData({
+      nombre_socio: "",
       razon_social: "",
+      nombre_fantasia: "",
+      domicilio_comercial: "",
+      nro_comercial: "",
+      telefono_comercial: "",
+      celular: "",
+      mail: "",
+      rubro_id: null,
+      tipo_comercio_id: null,
+      fecha_alta: getArgentinaDateString(),
+      fecha_baja: "",
+      fecha_nacimiento: "",
+      documento: "",
+      estado_civil: "",
+      nacionalidad: "Argentina",
+      domicilio_personal: "",
+      nro_personal: "",
+      localidad: "",
+      codigo_postal: "",
+      telefono_fijo: "",
       cuit: "",
-      tipo_sociedad: "",
-      fecha_constitucion: "",
-      email: "",
-      telefono: "",
-      web: "",
-      direccion_fiscal: "",
-      condicion_fiscal: "",
-      criterio_facturacion: "",
-      datos_bancarios: "",
-      representante_legal: "",
-      dni_representante: "",
-      cargo_representante: "",
-      actividad_economica: "",
-      registro_mercantil: "",
-      status: "Activo",
-      fk_id_usuario: null
+      habilitado: "",
+      tipo_socio: "Activo",
+      fk_id_usuario: null,
+      password: ""
     })
     setErrors({})
-    setActiveTab("basica")
+    setActiveTab("identificacion")
+    setAutoCreateUser(true)
+    setUserPassword('')
+  }
+
+  // Función para crear usuario en Clerk
+  const createUserInClerk = async (socioData: any) => {
+    try {
+      const response = await fetch('/api/clerk/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: socioData.mail,
+          password: formData.password,
+          firstName: socioData.nombre_socio.split(' ')[0] || socioData.nombre_socio,
+          lastName: socioData.nombre_socio.split(' ').slice(1).join(' ') || '',
+          representanteLegal: socioData.nombre_socio,
+          telefono: socioData.telefono_comercial || socioData.celular
+        })
+      })
+
+      const result = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Error creando usuario')
+      }
+      
+      return result.usuarioId
+    } catch (error) {
+      console.error('Error creando usuario en Clerk:', error)
+      throw error
+    }
   }
 
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {}
     
-    // Validar pestaña Básica
+    // Validaciones obligatorias
+    if (!formData.nombre_socio.trim()) {
+      newErrors.nombre_socio = "El nombre del socio es obligatorio"
+    }
     if (!formData.razon_social.trim()) {
       newErrors.razon_social = "La razón social es obligatoria"
+    }
+    if (!formData.domicilio_comercial.trim()) {
+      newErrors.domicilio_comercial = "El domicilio comercial es obligatorio"
+    }
+    if (!formData.mail.trim()) {
+      newErrors.mail = "El email es obligatorio"
+    } else if (!/\S+@\S+\.\S+/.test(formData.mail)) {
+      newErrors.mail = "El email no es válido"
+    }
+    if (!formData.documento.trim()) {
+      newErrors.documento = "El documento es obligatorio"
     }
     if (!formData.cuit.trim()) {
       newErrors.cuit = "El CUIT es obligatorio"
     }
-    if (!formData.tipo_sociedad) {
-      newErrors.tipo_sociedad = "El tipo de sociedad es obligatorio"
-    }
 
-    // Validar pestaña Contacto
-    if (!formData.email.trim()) {
-      newErrors.email = "El email es obligatorio"
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = "El email no es válido"
-    }
-    if (!formData.telefono.trim()) {
-      newErrors.telefono = "El teléfono es obligatorio"
-    }
-    if (!formData.direccion_fiscal.trim()) {
-      newErrors.direccion_fiscal = "La dirección fiscal es obligatoria"
-    }
-
-    // Validar pestaña Fiscal
-    if (!formData.condicion_fiscal) {
-      newErrors.condicion_fiscal = "La condición fiscal es obligatoria"
-    }
-    if (!formData.criterio_facturacion) {
-      newErrors.criterio_facturacion = "El criterio de facturación es obligatorio"
-    }
-
-    // Validar pestaña Representante
-    if (!formData.representante_legal.trim()) {
-      newErrors.representante_legal = "El representante legal es obligatorio"
-    }
-    if (!formData.dni_representante.trim()) {
-      newErrors.dni_representante = "El DNI del representante es obligatorio"
-    }
-    if (!formData.cargo_representante.trim()) {
-      newErrors.cargo_representante = "El cargo del representante es obligatorio"
+    // Validar contraseña si se va a crear usuario
+    if (autoCreateUser && !formData.password.trim()) {
+      newErrors.password = "La contraseña es obligatoria para crear el usuario"
     }
 
     setErrors(newErrors)
@@ -186,139 +310,278 @@ export function MembersModule() {
 
   const handleSubmit = async () => {
     if (!validateForm()) {
-      // Determinar en qué pestaña está el primer error
-      const errorFields = Object.keys(errors)
-      if (errorFields.includes('razon_social') || errorFields.includes('cuit') || errorFields.includes('tipo_sociedad')) {
-        setActiveTab("basica")
-      } else if (errorFields.includes('email') || errorFields.includes('telefono') || errorFields.includes('direccion_fiscal')) {
-        setActiveTab("contacto")
-      } else if (errorFields.includes('condicion_fiscal') || errorFields.includes('criterio_facturacion')) {
-        setActiveTab("fiscal")
-      } else if (errorFields.includes('representante_legal') || errorFields.includes('dni_representante') || errorFields.includes('cargo_representante')) {
-        setActiveTab("representante")
-      }
+      toast({
+        title: "Error de validación",
+        description: "Por favor corrige los errores en el formulario",
+        variant: "destructive"
+      })
       return
     }
 
     try {
-      // Guardar el socio en Supabase
-      const { data, error } = await supabase
-        .from('socios')
-        .insert([{
-          razon_social: formData.razon_social,
-          cuit: formData.cuit,
-          tipo_sociedad: formData.tipo_sociedad,
-          fecha_constitucion: formData.fecha_constitucion || null,
-          email: formData.email,
-          telefono: formData.telefono,
-          web: formData.web || null,
-          direccion_fiscal: formData.direccion_fiscal,
-          condicion_fiscal: formData.condicion_fiscal,
-          criterio_facturacion: formData.criterio_facturacion,
-          datos_bancarios: formData.datos_bancarios || null,
-          representante_legal: formData.representante_legal,
-          dni_representante: formData.dni_representante,
-          cargo_representante: formData.cargo_representante,
-          actividad_economica: formData.actividad_economica || null,
-          registro_mercantil: formData.registro_mercantil || null,
-          status: formData.status,
-          fk_id_usuario: formData.fk_id_usuario
-        }])
-        .select()
+      setSaving(true)
+      let usuarioId = null
 
-      if (error) {
-        console.error('Error al crear socio:', error)
-        alert('Error al crear el socio: ' + error.message)
-        return
+      // Crear usuario en Clerk if autoCreateUser is true
+      if (autoCreateUser) {
+        usuarioId = await createUserInClerk(formData)
       }
 
-      console.log('Socio creado exitosamente:', data)
-      
-      // Recargar los datos
-      await cargarDatos()
-      
-      // Cerrar el diálogo y resetear el formulario
-      setIsDialogOpen(false)
+      // Preparar datos para crear el socio
+      const socioData = {
+        ...formData,
+        fk_id_usuario: usuarioId || formData.fk_id_usuario
+      }
+
+      // Remover la contraseña de los datos del socio
+      const { password, ...socioDataWithoutPassword } = socioData
+
+      const response = await fetch('/api/socios/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(socioDataWithoutPassword)
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Error creando socio')
+      }
+
+      toast({
+        title: "Socio creado exitosamente",
+        description: autoCreateUser ? "Se creó el socio y su usuario automáticamente" : "El socio fue creado correctamente"
+      })
+
       resetForm()
-    } catch (err) {
-      console.error('Error al crear socio:', err)
-      alert('Error inesperado al crear el socio')
+      setIsDialogOpen(false)
+      cargarDatos()
+      
+    } catch (error: any) {
+      console.error('Error creando socio:', error)
+      toast({
+        title: "Error",
+        description: error.message || "Error al crear el socio",
+        variant: "destructive"
+      })
+    } finally {
+      setSaving(false)
     }
   }
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ 
-      ...prev, 
-      [field]: field === 'fk_id_usuario' ? (value ? parseInt(value) : null) : value 
-    }))
-    // Limpiar error del campo cuando el usuario empiece a escribir
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: "" }))
-    }
-  }
-
-  const handleViewMember = (member: Socio) => {
-    setSelectedMember(member)
-    setIsViewDialogOpen(true)
-  }
-
-  const handleEditMember = (member: Socio) => {
+  const handleEdit = (member: Socio) => {
     setSelectedMember(member)
     setFormData({
-      razon_social: member.razon_social,
-      cuit: member.cuit,
-      tipo_sociedad: member.tipo_sociedad,
-      fecha_constitucion: member.fecha_constitucion || "",
-      email: member.email,
-      telefono: member.telefono,
-      web: member.web || "",
-      direccion_fiscal: member.direccion_fiscal,
-      condicion_fiscal: member.condicion_fiscal,
-      criterio_facturacion: member.criterio_facturacion,
-      datos_bancarios: member.datos_bancarios || "",
-      representante_legal: member.representante_legal,
-      dni_representante: member.dni_representante,
-      cargo_representante: member.cargo_representante,
-      actividad_economica: member.actividad_economica || "",
-      registro_mercantil: member.registro_mercantil || "",
-      status: member.status,
-      fk_id_usuario: null // TODO: Agregar fk_id_usuario al tipo Socio
+      nombre_socio: member.nombre_socio || "",
+      razon_social: member.razon_social || "",
+      nombre_fantasia: member.nombre_fantasia || "",
+      domicilio_comercial: member.domicilio_comercial || "",
+      nro_comercial: member.nro_comercial || "",
+      telefono_comercial: member.telefono_comercial || "",
+      celular: member.celular || "",
+      mail: member.mail || "",
+      rubro_id: member.rubro_id || null,
+      tipo_comercio_id: member.tipo_comercio_id || null,
+      fecha_alta: dateStringToInputValue(member.fecha_alta) || "",
+      fecha_baja: dateStringToInputValue(member.fecha_baja) || "",
+      fecha_nacimiento: dateStringToInputValue(member.fecha_nacimiento) || "",
+      documento: member.documento || "",
+      estado_civil: member.estado_civil || "",
+      nacionalidad: member.nacionalidad || "Argentina",
+      domicilio_personal: member.domicilio_personal || "",
+      nro_personal: member.nro_personal || "",
+      localidad: member.localidad || "",
+      codigo_postal: member.codigo_postal || "",
+      telefono_fijo: member.telefono_fijo || "",
+      cuit: member.cuit || "",
+      habilitado: member.habilitado || "",
+      tipo_socio: member.tipo_socio || "Activo",
+      fk_id_usuario: member.fk_id_usuario,
+      password: ""
     })
-    setActiveTab("basica")
     setIsEditDialogOpen(true)
   }
 
-  const handleDeleteMember = (member: Socio) => {
-    setSelectedMember(member)
-    setIsDeleteDialogOpen(true)
-  }
-
-  const confirmDelete = async () => {
-    if (!selectedMember) return
+  const handleUpdate = async () => {
+    if (!validateForm() || !selectedMember) return
 
     try {
-      const { error } = await supabase
-        .from('socios')
-        .delete()
-        .eq('id', selectedMember.id)
+      setSaving(true)
+      const { password, ...socioDataWithoutPassword } = formData
 
-      if (error) {
-        console.error('Error al eliminar socio:', error)
-        alert('Error al eliminar el socio: ' + error.message)
+      const response = await fetch(`/api/socios/update/${selectedMember.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(socioDataWithoutPassword)
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Error actualizando socio')
+      }
+
+      toast({
+        title: "Socio actualizado exitosamente",
+        description: "Los cambios han sido guardados"
+      })
+
+      setIsEditDialogOpen(false)
+      setSelectedMember(null)
+      cargarDatos()
+      
+    } catch (error: any) {
+      console.error('Error actualizando socio:', error)
+      toast({
+        title: "Error",
+        description: error.message || "Error al actualizar el socio",
+        variant: "destructive"
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const formatearFecha = (fecha: string | null) => {
+    return formatDateForDisplay(fecha)
+  }
+
+  const handleCreateRubro = async () => {
+    if (!nuevoRubro.nombre.trim()) {
+      toast({
+        title: "Error",
+        description: "El nombre del rubro es obligatorio",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('rubros')
+        .insert([nuevoRubro])
+        .select()
+
+      if (error) throw error
+
+      toast({
+        title: "Rubro creado exitosamente",
+        description: "El nuevo rubro ha sido agregado"
+      })
+
+      setNuevoRubro({ nombre: "", descripcion: "" })
+      setIsRubroDialogOpen(false)
+      cargarRubros()
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Error al crear el rubro",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleCreateTipoComercio = async () => {
+    if (!nuevoTipoComercio.nombre.trim()) {
+      toast({
+        title: "Error",
+        description: "El nombre del tipo de comercio es obligatorio",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('tipo_comercios')
+        .insert([nuevoTipoComercio])
+        .select()
+
+      if (error) throw error
+
+      toast({
+        title: "Tipo de comercio creado exitosamente",
+        description: "El nuevo tipo de comercio ha sido agregado"
+      })
+
+      setNuevoTipoComercio({ nombre: "", descripcion: "" })
+      setIsTipoComercioDialogOpen(false)
+      cargarTiposComercio()
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Error al crear el tipo de comercio",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleMigration = async () => {
+    if (!migrationFile) {
+      toast({
+        title: "Error",
+        description: "Por favor selecciona un archivo para migrar",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setMigrating(true)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', migrationFile)
+
+      const response = await fetch('/api/socios/migrate', {
+        method: 'POST',
+        body: formData
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Error en la migración')
+      }
+
+      toast({
+        title: "Migración exitosa",
+        description: `Se migraron ${result.count} socios correctamente`
+      })
+
+      setMigrationFile(null)
+      setIsMigrationDialogOpen(false)
+      cargarDatos() // Recargar la lista de socios
+
+    } catch (error: any) {
+      toast({
+        title: "Error en la migración",
+        description: error.message || "Error al procesar el archivo",
+        variant: "destructive"
+      })
+    } finally {
+      setMigrating(false)
+    }
+  }
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      const allowedTypes = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+        'application/vnd.ms-excel', // .xls
+        'text/csv' // .csv
+      ]
+
+      if (!allowedTypes.includes(file.type)) {
+        toast({
+          title: "Archivo no válido",
+          description: "Por favor selecciona un archivo Excel (.xlsx, .xls) o CSV (.csv)",
+          variant: "destructive"
+        })
         return
       }
 
-      console.log('Socio eliminado exitosamente')
-      
-      // Recargar los datos
-      await cargarDatos()
-      
-      // Cerrar el diálogo
-      setIsDeleteDialogOpen(false)
-      setSelectedMember(null)
-    } catch (err) {
-      console.error('Error al eliminar socio:', err)
-      alert('Error inesperado al eliminar el socio')
+      setMigrationFile(file)
     }
   }
 
@@ -330,377 +593,433 @@ export function MembersModule() {
           <h2 className="text-3xl font-bold tracking-tight">Gestión de Socios</h2>
           <p className="text-muted-foreground">Administra los socios de la agrupación</p>
         </div>
+        <div className="flex gap-2">
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-black hover:bg-gray-800 text-white" onClick={resetForm}>
+                <Plus className="mr-2 h-4 w-4" />
+                Nuevo Socio
+              </Button>
+            </DialogTrigger>
+          </Dialog>
+          <Button
+            className="bg-purple-600 hover:bg-purple-700 text-white"
+            onClick={() => setIsMigrationDialogOpen(true)}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Migrar Socios
+          </Button>
+        </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button 
-              className="bg-black hover:bg-gray-800 text-white"
-              onClick={() => setIsDialogOpen(true)}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Nuevo Socio
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[800px] bg-white border-0 shadow-2xl rounded-xl text-black">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white">
             <DialogHeader>
-              <DialogTitle>Agregar Nuevo Socio</DialogTitle>
-              <DialogDescription>Completa la información del socio</DialogDescription>
+              <DialogTitle>Crear Nuevo Socio</DialogTitle>
+              <DialogDescription>
+                Completa todos los datos del nuevo socio
+              </DialogDescription>
             </DialogHeader>
+
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-5 bg-gray-100 p-1 rounded-lg">
-                <TabsTrigger value="basica" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm text-xs">
-                  Básica
-                  {(errors.razon_social || errors.cuit || errors.tipo_sociedad) && (
-                    <span className="ml-1 text-red-500">•</span>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="contacto" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm text-xs">
-                  Contacto
-                  {(errors.email || errors.telefono || errors.direccion_fiscal) && (
-                    <span className="ml-1 text-red-500">•</span>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="fiscal" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm text-xs">
-                  Fiscal
-                  {(errors.condicion_fiscal || errors.criterio_facturacion) && (
-                    <span className="ml-1 text-red-500">•</span>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="representante" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm text-xs">
-                  Representante
-                  {(errors.representante_legal || errors.dni_representante || errors.cargo_representante) && (
-                    <span className="ml-1 text-red-500">•</span>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="adicional" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm text-xs">Adicional</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="identificacion">Identificación</TabsTrigger>
+                <TabsTrigger value="contacto">Contacto</TabsTrigger>
+                <TabsTrigger value="personal">Personal</TabsTrigger>
+                <TabsTrigger value="comercial">Comercial</TabsTrigger>
+                <TabsTrigger value="usuario">Usuario</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="basica" className="space-y-4 mt-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
+              {/* Pestaña Identificación */}
+              <TabsContent value="identificacion" className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="nombre_socio">Nombre del Socio *</Label>
+                    <Input
+                      id="nombre_socio"
+                      value={formData.nombre_socio}
+                      onChange={(e) => setFormData({...formData, nombre_socio: e.target.value})}
+                      className={errors.nombre_socio ? "border-red-500" : ""}
+                    />
+                    {errors.nombre_socio && <p className="text-sm text-red-500">{errors.nombre_socio}</p>}
+                  </div>
+                  
+                  <div className="space-y-2">
                     <Label htmlFor="razon_social">Razón Social *</Label>
-                    <Input 
-                      id="razon_social" 
-                      placeholder="Razón social de la empresa" 
+                    <Input
+                      id="razon_social"
                       value={formData.razon_social}
-                      onChange={(e) => handleInputChange('razon_social', e.target.value)}
-                      className={`${errors.razon_social ? "border-red-500" : ""} placeholder:text-gray-300`}
+                      onChange={(e) => setFormData({...formData, razon_social: e.target.value})}
+                      className={errors.razon_social ? "border-red-500" : ""}
                     />
-                    {errors.razon_social && (
-                      <p className="text-red-500 text-xs">{errors.razon_social}</p>
-                    )}
+                    {errors.razon_social && <p className="text-sm text-red-500">{errors.razon_social}</p>}
                   </div>
-                  <div className="grid gap-2">
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="nombre_fantasia">Nombre Fantasía</Label>
+                    <Input
+                      id="nombre_fantasia"
+                      value={formData.nombre_fantasia}
+                      onChange={(e) => setFormData({...formData, nombre_fantasia: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
                     <Label htmlFor="cuit">CUIT *</Label>
-                    <Input 
-                      id="cuit" 
-                      placeholder="20-12345678-9" 
+                    <Input
+                      id="cuit"
                       value={formData.cuit}
-                      onChange={(e) => handleInputChange('cuit', e.target.value)}
-                      className={`${errors.cuit ? "border-red-500" : ""} placeholder:text-gray-300`}
+                      onChange={(e) => setFormData({...formData, cuit: e.target.value})}
+                      className={errors.cuit ? "border-red-500" : ""}
                     />
-                    {errors.cuit && (
-                      <p className="text-red-500 text-xs">{errors.cuit}</p>
-                    )}
+                    {errors.cuit && <p className="text-sm text-red-500">{errors.cuit}</p>}
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="tipo_sociedad">Tipo de Sociedad *</Label>
-                    <select 
-                      id="tipo_sociedad" 
-                      className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.tipo_sociedad ? "border-red-500" : "border-input"} placeholder:text-gray-300`}
-                      value={formData.tipo_sociedad}
-                      onChange={(e) => handleInputChange('tipo_sociedad', e.target.value)}
-                    >
-                      <option value="" className="text-gray-300">Seleccionar tipo...</option>
-                      <option value="S.R.L.">S.R.L.</option>
-                      <option value="S.A.">S.A.</option>
-                      <option value="Monotributista">Monotributista</option>
-                      <option value="Autónomo">Autónomo</option>
-                      <option value="Otro">Otro</option>
-                    </select>
-                    {errors.tipo_sociedad && (
-                      <p className="text-red-500 text-xs">{errors.tipo_sociedad}</p>
-                    )}
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="fecha_constitucion">Fecha de Constitución</Label>
-                    <Input 
-                      id="fecha_constitucion" 
-                      type="date" 
-                      value={formData.fecha_constitucion}
-                      onChange={(e) => handleInputChange('fecha_constitucion', e.target.value)}
-                      className="placeholder:text-gray-300"
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="documento">Documento *</Label>
+                    <Input
+                      id="documento"
+                      value={formData.documento}
+                      onChange={(e) => setFormData({...formData, documento: e.target.value})}
+                      className={errors.documento ? "border-red-500" : ""}
                     />
+                    {errors.documento && <p className="text-sm text-red-500">{errors.documento}</p>}
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="fk_id_usuario">Usuario Asociado</Label>
-                    <select 
-                      id="fk_id_usuario" 
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-gray-300"
-                      value={formData.fk_id_usuario || ""}
-                      onChange={(e) => handleInputChange('fk_id_usuario', e.target.value)}
-                    >
-                      <option value="" className="text-gray-300">
-                        {usuarios.length === 0 ? "No hay usuarios con rol socio" : "Seleccionar usuario..."}
-                      </option>
-                      {usuarios.map((usuario) => (
-                        <option key={usuario.id} value={usuario.id}>
-                          {usuario.nombre} ({usuario.email})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="contacto" className="space-y-4 mt-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email *</Label>
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      placeholder="socio@email.com" 
-                      value={formData.email}
-                      onChange={(e) => handleInputChange('email', e.target.value)}
-                      className={`${errors.email ? "border-red-500" : ""} placeholder:text-gray-300`}
-                    />
-                    {errors.email && (
-                      <p className="text-red-500 text-xs">{errors.email}</p>
-                    )}
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="telefono">Teléfono *</Label>
-                    <Input 
-                      id="telefono" 
-                      placeholder="+54 11 1234-5678" 
-                      value={formData.telefono}
-                      onChange={(e) => handleInputChange('telefono', e.target.value)}
-                      className={`${errors.telefono ? "border-red-500" : ""} placeholder:text-gray-300`}
-                    />
-                    {errors.telefono && (
-                      <p className="text-red-500 text-xs">{errors.telefono}</p>
-                    )}
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="web">Sitio Web</Label>
-                    <Input 
-                      id="web" 
-                      placeholder="https://www.ejemplo.com" 
-                      value={formData.web}
-                      onChange={(e) => handleInputChange('web', e.target.value)}
-                      className="placeholder:text-gray-300"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="direccion_fiscal">Dirección Fiscal *</Label>
-                    <Input 
-                      id="direccion_fiscal" 
-                      placeholder="Dirección fiscal completa" 
-                      value={formData.direccion_fiscal}
-                      onChange={(e) => handleInputChange('direccion_fiscal', e.target.value)}
-                      className={`${errors.direccion_fiscal ? "border-red-500" : ""} placeholder:text-gray-300`}
-                    />
-                    {errors.direccion_fiscal && (
-                      <p className="text-red-500 text-xs">{errors.direccion_fiscal}</p>
-                    )}
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="fiscal" className="space-y-4 mt-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="condicion_fiscal">Condición Fiscal *</Label>
-                    <select 
-                      id="condicion_fiscal" 
-                      className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.condicion_fiscal ? "border-red-500" : "border-input"} placeholder:text-gray-300`}
-                      value={formData.condicion_fiscal}
-                      onChange={(e) => handleInputChange('condicion_fiscal', e.target.value)}
-                    >
-                      <option value="" className="text-gray-300">Seleccionar condición...</option>
-                      <option value="Responsable Inscripto">Responsable Inscripto</option>
-                      <option value="Monotributista">Monotributista</option>
-                      <option value="Exento">Exento</option>
-                      <option value="Consumidor Final">Consumidor Final</option>
-                    </select>
-                    {errors.condicion_fiscal && (
-                      <p className="text-red-500 text-xs">{errors.condicion_fiscal}</p>
-                    )}
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="criterio_facturacion">Criterio de Facturación *</Label>
-                    <select 
-                      id="criterio_facturacion" 
-                      className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.criterio_facturacion ? "border-red-500" : "border-input"} placeholder:text-gray-300`}
-                      value={formData.criterio_facturacion}
-                      onChange={(e) => handleInputChange('criterio_facturacion', e.target.value)}
-                    >
-                      <option value="" className="text-gray-300">Seleccionar criterio...</option>
-                      <option value="Anticipado">Anticipado</option>
-                      <option value="Por entrega">Por entrega</option>
-                      <option value="30 días">30 días</option>
-                      <option value="60 días">60 días</option>
-                      <option value="Contado">Contado</option>
-                    </select>
-                    {errors.criterio_facturacion && (
-                      <p className="text-red-500 text-xs">{errors.criterio_facturacion}</p>
-                    )}
-                  </div>
-                  <div className="grid gap-2 col-span-2">
-                    <Label htmlFor="datos_bancarios">Datos Bancarios</Label>
-                    <textarea 
-                      id="datos_bancarios" 
-                      className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-gray-300" 
-                      placeholder="Información bancaria (cuenta corriente, CBU, etc.)"
-                      value={formData.datos_bancarios}
-                      onChange={(e) => handleInputChange('datos_bancarios', e.target.value)}
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="nacionalidad">Nacionalidad</Label>
+                    <Input
+                      id="nacionalidad"
+                      value={formData.nacionalidad}
+                      onChange={(e) => setFormData({...formData, nacionalidad: e.target.value})}
                     />
                   </div>
                 </div>
               </TabsContent>
 
-              <TabsContent value="representante" className="space-y-4 mt-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="representante_legal">Representante Legal *</Label>
-                    <Input 
-                      id="representante_legal" 
-                      placeholder="Nombre completo del representante" 
-                      value={formData.representante_legal}
-                      onChange={(e) => handleInputChange('representante_legal', e.target.value)}
-                      className={`${errors.representante_legal ? "border-red-500" : ""} placeholder:text-gray-300`}
+              {/* Pestaña Contacto */}
+              <TabsContent value="contacto" className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="domicilio_comercial">Domicilio Comercial *</Label>
+                    <Input
+                      id="domicilio_comercial"
+                      value={formData.domicilio_comercial}
+                      onChange={(e) => setFormData({...formData, domicilio_comercial: e.target.value})}
+                      className={errors.domicilio_comercial ? "border-red-500" : ""}
                     />
-                    {errors.representante_legal && (
-                      <p className="text-red-500 text-xs">{errors.representante_legal}</p>
-                    )}
+                    {errors.domicilio_comercial && <p className="text-sm text-red-500">{errors.domicilio_comercial}</p>}
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="dni_representante">DNI Representante *</Label>
-                    <Input 
-                      id="dni_representante" 
-                      placeholder="12345678" 
-                      value={formData.dni_representante}
-                      onChange={(e) => handleInputChange('dni_representante', e.target.value)}
-                      className={`${errors.dni_representante ? "border-red-500" : ""} placeholder:text-gray-300`}
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="nro_comercial">Número Comercial</Label>
+                    <Input
+                      id="nro_comercial"
+                      value={formData.nro_comercial}
+                      onChange={(e) => setFormData({...formData, nro_comercial: e.target.value})}
                     />
-                    {errors.dni_representante && (
-                      <p className="text-red-500 text-xs">{errors.dni_representante}</p>
-                    )}
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="cargo_representante">Cargo del Representante *</Label>
-                    <Input 
-                      id="cargo_representante" 
-                      placeholder="Ej: Presidente, Gerente, etc." 
-                      value={formData.cargo_representante}
-                      onChange={(e) => handleInputChange('cargo_representante', e.target.value)}
-                      className={`${errors.cargo_representante ? "border-red-500" : ""} placeholder:text-gray-300`}
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="mail">Email *</Label>
+                    <Input
+                      id="mail"
+                      type="email"
+                      value={formData.mail}
+                      onChange={(e) => setFormData({...formData, mail: e.target.value})}
+                      className={errors.mail ? "border-red-500" : ""}
                     />
-                    {errors.cargo_representante && (
-                      <p className="text-red-500 text-xs">{errors.cargo_representante}</p>
-                    )}
+                    {errors.mail && <p className="text-sm text-red-500">{errors.mail}</p>}
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="actividad_economica">Actividad Económica</Label>
-                    <Input 
-                      id="actividad_economica" 
-                      placeholder="Descripción de la actividad principal" 
-                      value={formData.actividad_economica}
-                      onChange={(e) => handleInputChange('actividad_economica', e.target.value)}
-                      className="placeholder:text-gray-300"
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="telefono_comercial">Teléfono Comercial</Label>
+                    <Input
+                      id="telefono_comercial"
+                      value={formData.telefono_comercial}
+                      onChange={(e) => setFormData({...formData, telefono_comercial: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="celular">Celular</Label>
+                    <Input
+                      id="celular"
+                      value={formData.celular}
+                      onChange={(e) => setFormData({...formData, celular: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="telefono_fijo">Teléfono Fijo</Label>
+                    <Input
+                      id="telefono_fijo"
+                      value={formData.telefono_fijo}
+                      onChange={(e) => setFormData({...formData, telefono_fijo: e.target.value})}
                     />
                   </div>
                 </div>
               </TabsContent>
 
-              <TabsContent value="adicional" className="space-y-4 mt-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="registro_mercantil">Registro Mercantil</Label>
-                    <Input 
-                      id="registro_mercantil" 
-                      placeholder="Número de registro mercantil" 
-                      value={formData.registro_mercantil}
-                      onChange={(e) => handleInputChange('registro_mercantil', e.target.value)}
-                      className="placeholder:text-gray-300"
+              {/* Pestaña Personal */}
+              <TabsContent value="personal" className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="fecha_nacimiento">Fecha de Nacimiento</Label>
+                    <Input
+                      id="fecha_nacimiento"
+                      type="date"
+                      value={formData.fecha_nacimiento}
+                      onChange={(e) => setFormData({...formData, fecha_nacimiento: e.target.value})}
                     />
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="status">Estado *</Label>
-                    <select 
-                      id="status" 
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      value={formData.status}
-                      onChange={(e) => handleInputChange('status', e.target.value)}
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="estado_civil">Estado Civil</Label>
+                    <Select 
+                      value={formData.estado_civil} 
+                      onValueChange={(value) => setFormData({...formData, estado_civil: value})}
                     >
-                      <option value="Activo">Activo</option>
-                      <option value="Inactivo">Inactivo</option>
-                      <option value="Suspendido">Suspendido</option>
-                    </select>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar estado civil" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Soltero">Soltero</SelectItem>
+                        <SelectItem value="Casado">Casado</SelectItem>
+                        <SelectItem value="Divorciado">Divorciado</SelectItem>
+                        <SelectItem value="Viudo">Viudo</SelectItem>
+                        <SelectItem value="Unión de hecho">Unión de hecho</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="domicilio_personal">Domicilio Personal</Label>
+                    <Input
+                      id="domicilio_personal"
+                      value={formData.domicilio_personal}
+                      onChange={(e) => setFormData({...formData, domicilio_personal: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="nro_personal">Número Personal</Label>
+                    <Input
+                      id="nro_personal"
+                      value={formData.nro_personal}
+                      onChange={(e) => setFormData({...formData, nro_personal: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="localidad">Localidad</Label>
+                    <Input
+                      id="localidad"
+                      value={formData.localidad}
+                      onChange={(e) => setFormData({...formData, localidad: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="codigo_postal">Código Postal</Label>
+                    <Input
+                      id="codigo_postal"
+                      value={formData.codigo_postal}
+                      onChange={(e) => setFormData({...formData, codigo_postal: e.target.value})}
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Pestaña Comercial */}
+              <TabsContent value="comercial" className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="rubro_id">Rubro</Label>
+                    <Select
+                      value={formData.rubro_id?.toString() || "0"}
+                      onValueChange={(value) => setFormData({...formData, rubro_id: value === "0" ? null : parseInt(value)})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar rubro" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[200px] overflow-y-auto">
+                        <SelectItem value="0">Ninguno</SelectItem>
+                        {rubros.map((rubro) => (
+                          <SelectItem key={rubro.id} value={rubro.id.toString()}>
+                            {rubro.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="tipo_comercio_id">Tipo de Comercio</Label>
+                    <Select
+                      value={formData.tipo_comercio_id?.toString() || "0"}
+                      onValueChange={(value) => setFormData({...formData, tipo_comercio_id: value === "0" ? null : parseInt(value)})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar tipo de comercio" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[200px] overflow-y-auto">
+                        <SelectItem value="0">Ninguno</SelectItem>
+                        {tiposComercio.map((tipo) => (
+                          <SelectItem key={tipo.id} value={tipo.id.toString()}>
+                            {tipo.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="fecha_alta">Fecha de Alta</Label>
+                    <Input
+                      id="fecha_alta"
+                      type="date"
+                      value={formData.fecha_alta}
+                      onChange={(e) => setFormData({...formData, fecha_alta: e.target.value})}
+                    />
+                  </div>
+                  
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="tipo_socio">Tipo de Socio</Label>
+                    <Select
+                      value={formData.tipo_socio}
+                      onValueChange={(value) => setFormData({...formData, tipo_socio: value})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Activo">Activo</SelectItem>
+                        <SelectItem value="Adherente">Adherente</SelectItem>
+                        <SelectItem value="Vitalicio">Vitalicio</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="habilitado">Estado de Habilitación</Label>
+                    <Input
+                      id="habilitado"
+                      value={formData.habilitado}
+                      onChange={(e) => setFormData({...formData, habilitado: e.target.value})}
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Pestaña Usuario */}
+              <TabsContent value="usuario" className="space-y-4">
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="autoCreateUser"
+                      checked={autoCreateUser}
+                      onCheckedChange={(checked) => setAutoCreateUser(checked as boolean)}
+                    />
+                    <Label htmlFor="autoCreateUser">Crear usuario automáticamente en Clerk</Label>
+                  </div>
+                  
+                  {autoCreateUser && (
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Contraseña *</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={formData.password}
+                        onChange={(e) => setFormData({...formData, password: e.target.value})}
+                        className={errors.password ? "border-red-500" : ""}
+                      />
+                      {errors.password && <p className="text-sm text-red-500">{errors.password}</p>}
+                    </div>
+                  )}
+                  
+                  {!autoCreateUser && (
+                    <div className="space-y-2">
+                      <Label htmlFor="fk_id_usuario">Usuario existente</Label>
+                      <Select
+                        value={formData.fk_id_usuario?.toString() || "0"}
+                        onValueChange={(value) => setFormData({...formData, fk_id_usuario: value === "0" ? null : parseInt(value)})}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar usuario existente" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Ninguno</SelectItem>
+                          {usuarios.map((user) => (
+                            <SelectItem key={user.id} value={user.id.toString()}>
+                              {user.nombre} - {user.email}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setIsDialogOpen(false)
-                  resetForm()
-                }}
-              >
+
+            <div className="flex justify-end gap-2 mt-6">
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                <X className="mr-2 h-4 w-4" />
                 Cancelar
               </Button>
-              <Button 
-                className="bg-black hover:bg-gray-800 text-white"
-                onClick={handleSubmit}
-              >
-                Guardar Socio
+              <Button onClick={handleSubmit} disabled={saving}>
+                <Save className="mr-2 h-4 w-4" />
+                {saving ? "Guardando..." : "Crear Socio"}
               </Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Socios</CardTitle>
-            <User className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{members.length}</div>
-            <p className="text-xs text-muted-foreground">Registrados en el sistema</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Socios Activos</CardTitle>
-            <User className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{members.filter(m => m.status === 'Activo').length}</div>
-            <p className="text-xs text-muted-foreground">Con estado activo</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Socios Inactivos</CardTitle>
-            <User className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{members.filter(m => m.status !== 'Activo').length}</div>
-            <p className="text-xs text-muted-foreground">Requieren atención</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Members Table with Tabs */}
+      {/* Tabla de socios */}
       <Card>
         <CardHeader>
-          <CardTitle>Socios Registrados</CardTitle>
-          <CardDescription>Lista completa de todos los socios de la agrupación</CardDescription>
+          <CardTitle className="text-blue-700">Listado de Socios</CardTitle>
+          <CardDescription>Gestiona todos los socios registrados</CardDescription>
+
+          {/* Filtros de búsqueda */}
+          <div className="flex gap-4 mt-4">
+            <div className="w-64">
+              <Label htmlFor="search-razon-social">Buscar por Razón Social</Label>
+              <Input
+                id="search-razon-social"
+                placeholder="Ingrese razón social..."
+                value={searchRazonSocial}
+                onChange={(e) => {
+                  setSearchRazonSocial(e.target.value)
+                  setCurrentMembersPage(1) // Reset to first page when searching
+                }}
+                className="border-gray-300 focus:border-gray-400"
+              />
+            </div>
+            <div className="w-64">
+              <Label htmlFor="search-tipo-socio">Filtrar por Tipo de Socio</Label>
+              <Select
+                value={searchTipoSocio}
+                onValueChange={(value) => {
+                  setSearchTipoSocio(value)
+                  setCurrentMembersPage(1) // Reset to first page when filtering
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos los tipos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="Activo">Activo</SelectItem>
+                  <SelectItem value="Adherente">Adherente</SelectItem>
+                  <SelectItem value="Vitalicio">Vitalicio</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -714,10 +1033,7 @@ export function MembersModule() {
             <div className="flex items-center justify-center py-8">
               <div className="text-center">
                 <p className="text-red-600 mb-2">{error}</p>
-                <Button 
-                  onClick={() => window.location.reload()} 
-                  className="bg-black hover:bg-gray-800 text-white"
-                >
+                <Button onClick={cargarDatos} className="bg-black hover:bg-gray-800 text-white">
                   Reintentar
                 </Button>
               </div>
@@ -730,657 +1046,762 @@ export function MembersModule() {
               </div>
             </div>
           ) : (
-            <Tabs defaultValue="general" className="space-y-4">
-              <TabsList className="bg-gray-100 p-1 rounded-lg">
-                <TabsTrigger value="general" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm">Información General</TabsTrigger>
-                <TabsTrigger value="fiscal" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm">Datos Fiscales</TabsTrigger>
-                <TabsTrigger value="contacto" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm">Información de Contacto</TabsTrigger>
-              </TabsList>
+            <>
+            {(() => {
+              const filteredMembers = members.filter(member => {
+                const matchesRazonSocial = member.razon_social.toLowerCase().includes(searchRazonSocial.toLowerCase())
+                const matchesTipoSocio = searchTipoSocio === "all" || searchTipoSocio === "" || member.tipo_socio === searchTipoSocio
+                return matchesRazonSocial && matchesTipoSocio
+              })
 
-              <TabsContent value="general" className="space-y-4">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Razón Social</TableHead>
-                      <TableHead>CUIT</TableHead>
-                      <TableHead>Tipo Sociedad</TableHead>
-                      <TableHead>Representante Legal</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>Fecha de Alta</TableHead>
-                      <TableHead>Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {members.map((member) => (
-                      <TableRow key={member.id}>
-                        <TableCell className="font-medium">{member.razon_social}</TableCell>
-                        <TableCell>{member.cuit}</TableCell>
-                        <TableCell>{member.tipo_sociedad}</TableCell>
-                        <TableCell>{member.representante_legal}</TableCell>
-                        <TableCell>
-                          <Badge variant={member.status === "Activo" ? "default" : "secondary"} className={member.status === "Activo" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
-                            {member.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{member.fecha_alta}</TableCell>
-                                                 <TableCell>
-                           <div className="flex gap-2">
-                             <Button 
-                               variant="ghost" 
-                               size="sm" 
-                               className="text-gray-600 hover:text-gray-800"
-                               onClick={() => handleViewMember(member)}
-                             >
-                               <Eye className="h-4 w-4" />
-                             </Button>
-                             <Button 
-                               variant="ghost" 
-                               size="sm" 
-                               className="text-gray-600 hover:text-gray-800"
-                               onClick={() => handleEditMember(member)}
-                             >
-                               <Edit className="h-4 w-4" />
-                             </Button>
-                                                            <Button 
-                                 variant="ghost" 
-                                 size="sm" 
-                                 className="text-gray-600 hover:text-gray-800"
-                                 onClick={() => handleDeleteMember(member)}
-                               >
-                                 <Trash2 className="h-4 w-4" />
-                               </Button>
-                           </div>
-                         </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TabsContent>
+              return (
+                <>
+                  <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Razón Social</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>CUIT</TableHead>
+                  <TableHead>Tipo de Socio</TableHead>
+                  <TableHead>Fecha Alta</TableHead>
+                  <TableHead>Fecha Baja</TableHead>
+                  <TableHead>Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredMembers
+                  .slice((currentMembersPage - 1) * membersPerPage, currentMembersPage * membersPerPage)
+                  .map((member) => (
+                  <TableRow key={member.id}>
+                    <TableCell className="font-medium">{member.nombre_socio}</TableCell>
+                    <TableCell>{member.razon_social}</TableCell>
+                    <TableCell>{member.mail}</TableCell>
+                    <TableCell>{member.cuit}</TableCell>
+                    <TableCell>
+                      <Badge
+                        className={
+                          member.tipo_socio === "Activo"
+                            ? "bg-green-100 text-green-800 hover:bg-green-200"
+                            : member.tipo_socio === "Adherente"
+                            ? "bg-blue-100 text-blue-800 hover:bg-blue-200"
+                            : member.tipo_socio === "Vitalicio"
+                            ? "bg-purple-100 text-purple-800 hover:bg-purple-200"
+                            : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+                        }
+                      >
+                        {member.tipo_socio}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{formatearFecha(member.fecha_alta)}</TableCell>
+                    <TableCell>{member.fecha_baja ? formatearFecha(member.fecha_baja) : '-'}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleEdit(member)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
 
-              <TabsContent value="fiscal" className="space-y-4">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Razón Social</TableHead>
-                      <TableHead>Condición Fiscal</TableHead>
-                      <TableHead>Criterio Facturación</TableHead>
-                      <TableHead>Dirección Fiscal</TableHead>
-                      <TableHead>Datos Bancarios</TableHead>
-                      <TableHead>Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {members.map((member) => (
-                      <TableRow key={member.id}>
-                        <TableCell className="font-medium">{member.razon_social}</TableCell>
-                        <TableCell>{member.condicion_fiscal}</TableCell>
-                        <TableCell>{member.criterio_facturacion}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{member.direccion_fiscal}</TableCell>
-                        <TableCell className="max-w-[150px] truncate">{member.datos_bancarios || 'No especificado'}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="text-gray-600 hover:text-gray-800"
-                              onClick={() => handleViewMember(member)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="text-gray-600 hover:text-gray-800"
-                              onClick={() => handleEditMember(member)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="text-gray-600 hover:text-gray-800"
-                              onClick={() => handleDeleteMember(member)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TabsContent>
-
-              <TabsContent value="contacto" className="space-y-4">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Razón Social</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Teléfono</TableHead>
-                      <TableHead>Sitio Web</TableHead>
-                      <TableHead>Actividad Económica</TableHead>
-                      <TableHead>Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {members.map((member) => (
-                      <TableRow key={member.id}>
-                        <TableCell className="font-medium">{member.razon_social}</TableCell>
-                        <TableCell>{member.email}</TableCell>
-                        <TableCell>{member.telefono}</TableCell>
-                        <TableCell>{member.web || 'No especificado'}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{member.actividad_economica || 'No especificado'}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="text-gray-600 hover:text-gray-800"
-                              onClick={() => handleViewMember(member)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="text-gray-600 hover:text-gray-800"
-                              onClick={() => handleEditMember(member)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="text-gray-600 hover:text-gray-800"
-                              onClick={() => handleDeleteMember(member)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TabsContent>
-            </Tabs>
+            {/* Paginación para Socios */}
+            <div className="flex items-center justify-between space-x-2 py-4">
+              <div className="text-sm text-muted-foreground">
+                Mostrando {Math.min((currentMembersPage - 1) * membersPerPage + 1, filteredMembers.length)} a {Math.min(currentMembersPage * membersPerPage, filteredMembers.length)} de {filteredMembers.length} socios
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentMembersPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentMembersPage === 1}
+                >
+                  Anterior
+                </Button>
+                <div className="text-sm">
+                  Página {currentMembersPage} de {Math.ceil(filteredMembers.length / membersPerPage)}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentMembersPage(prev => Math.min(prev + 1, Math.ceil(filteredMembers.length / membersPerPage)))}
+                  disabled={currentMembersPage === Math.ceil(filteredMembers.length / membersPerPage)}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
+                </>
+              )
+            })()}
+            </>
           )}
-
-          {/* Popup Ver Socio */}
-          <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-            <DialogContent className="sm:max-w-[800px] bg-white border-0 shadow-2xl rounded-xl text-black">
-              <DialogHeader>
-                <DialogTitle>Ver Socio</DialogTitle>
-                <DialogDescription>Información del socio seleccionado</DialogDescription>
-              </DialogHeader>
-              {selectedMember && (
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                  <TabsList className="grid w-full grid-cols-5 bg-gray-100 p-1 rounded-lg">
-                    <TabsTrigger value="basica" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm text-xs">Básica</TabsTrigger>
-                    <TabsTrigger value="contacto" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm text-xs">Contacto</TabsTrigger>
-                    <TabsTrigger value="fiscal" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm text-xs">Fiscal</TabsTrigger>
-                    <TabsTrigger value="representante" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm text-xs">Representante</TabsTrigger>
-                    <TabsTrigger value="adicional" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm text-xs">Adicional</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="basica" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label>Razón Social</Label>
-                        <div className="p-3 bg-gray-50 rounded-md">{selectedMember.razon_social}</div>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label>CUIT</Label>
-                        <div className="p-3 bg-gray-50 rounded-md">{selectedMember.cuit}</div>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label>Tipo de Sociedad</Label>
-                        <div className="p-3 bg-gray-50 rounded-md">{selectedMember.tipo_sociedad}</div>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label>Fecha de Constitución</Label>
-                        <div className="p-3 bg-gray-50 rounded-md">{selectedMember.fecha_constitucion || "No especificada"}</div>
-                      </div>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="contacto" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label>Email</Label>
-                        <div className="p-3 bg-gray-50 rounded-md">{selectedMember.email}</div>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label>Teléfono</Label>
-                        <div className="p-3 bg-gray-50 rounded-md">{selectedMember.telefono}</div>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label>Sitio Web</Label>
-                        <div className="p-3 bg-gray-50 rounded-md">{selectedMember.web || "No especificado"}</div>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label>Dirección Fiscal</Label>
-                        <div className="p-3 bg-gray-50 rounded-md">{selectedMember.direccion_fiscal}</div>
-                      </div>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="fiscal" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label>Condición Fiscal</Label>
-                        <div className="p-3 bg-gray-50 rounded-md">{selectedMember.condicion_fiscal}</div>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label>Criterio de Facturación</Label>
-                        <div className="p-3 bg-gray-50 rounded-md">{selectedMember.criterio_facturacion}</div>
-                      </div>
-                      <div className="grid gap-2 col-span-2">
-                        <Label>Datos Bancarios</Label>
-                        <div className="p-3 bg-gray-50 rounded-md min-h-[80px]">{selectedMember.datos_bancarios || "No especificados"}</div>
-                      </div>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="representante" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label>Representante Legal</Label>
-                        <div className="p-3 bg-gray-50 rounded-md">{selectedMember.representante_legal}</div>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label>DNI Representante</Label>
-                        <div className="p-3 bg-gray-50 rounded-md">{selectedMember.dni_representante}</div>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label>Cargo del Representante</Label>
-                        <div className="p-3 bg-gray-50 rounded-md">{selectedMember.cargo_representante}</div>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label>Actividad Económica</Label>
-                        <div className="p-3 bg-gray-50 rounded-md">{selectedMember.actividad_economica || "No especificada"}</div>
-                      </div>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="adicional" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label>Registro Mercantil</Label>
-                        <div className="p-3 bg-gray-50 rounded-md">{selectedMember.registro_mercantil || "No especificado"}</div>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label>Estado</Label>
-                        <div className="p-3 bg-gray-50 rounded-md">
-                          <Badge variant={selectedMember.status === "Activo" ? "default" : "secondary"} className={selectedMember.status === "Activo" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
-                            {selectedMember.status}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </TabsContent>
-                </Tabs>
-              )}
-              <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setIsViewDialogOpen(false)}
-                >
-                  Cerrar
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          {/* Popup Editar Socio */}
-          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-            <DialogContent className="sm:max-w-[800px] bg-white border-0 shadow-2xl rounded-xl text-black">
-              <DialogHeader>
-                <DialogTitle>Editar Socio</DialogTitle>
-                <DialogDescription>Modifica la información del socio</DialogDescription>
-              </DialogHeader>
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-5 bg-gray-100 p-1 rounded-lg">
-                  <TabsTrigger value="basica" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm text-xs">Básica</TabsTrigger>
-                  <TabsTrigger value="contacto" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm text-xs">Contacto</TabsTrigger>
-                  <TabsTrigger value="fiscal" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm text-xs">Fiscal</TabsTrigger>
-                  <TabsTrigger value="representante" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm text-xs">Representante</TabsTrigger>
-                  <TabsTrigger value="adicional" className="data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm text-xs">Adicional</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="basica" className="space-y-4 mt-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit_razon_social">Razón Social *</Label>
-                      <Input 
-                        id="edit_razon_social" 
-                        placeholder="Razón social de la empresa" 
-                        value={formData.razon_social}
-                        onChange={(e) => handleInputChange('razon_social', e.target.value)}
-                        className={`${errors.razon_social ? "border-red-500" : ""} placeholder:text-gray-300`}
-                      />
-                      {errors.razon_social && (
-                        <p className="text-red-500 text-xs">{errors.razon_social}</p>
-                      )}
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit_cuit">CUIT *</Label>
-                      <Input 
-                        id="edit_cuit" 
-                        placeholder="20-12345678-9" 
-                        value={formData.cuit}
-                        onChange={(e) => handleInputChange('cuit', e.target.value)}
-                        className={`${errors.cuit ? "border-red-500" : ""} placeholder:text-gray-300`}
-                      />
-                      {errors.cuit && (
-                        <p className="text-red-500 text-xs">{errors.cuit}</p>
-                      )}
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit_tipo_sociedad">Tipo de Sociedad *</Label>
-                      <select 
-                        id="edit_tipo_sociedad" 
-                        className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.tipo_sociedad ? "border-red-500" : "border-input"} placeholder:text-gray-300`}
-                        value={formData.tipo_sociedad}
-                        onChange={(e) => handleInputChange('tipo_sociedad', e.target.value)}
-                      >
-                        <option value="" className="text-gray-300">Seleccionar tipo...</option>
-                        <option value="S.R.L.">S.R.L.</option>
-                        <option value="S.A.">S.A.</option>
-                        <option value="Monotributista">Monotributista</option>
-                        <option value="Autónomo">Autónomo</option>
-                        <option value="Otro">Otro</option>
-                      </select>
-                      {errors.tipo_sociedad && (
-                        <p className="text-red-500 text-xs">{errors.tipo_sociedad}</p>
-                      )}
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit_fecha_constitucion">Fecha de Constitución</Label>
-                      <Input 
-                        id="edit_fecha_constitucion" 
-                        type="date" 
-                        value={formData.fecha_constitucion}
-                        onChange={(e) => handleInputChange('fecha_constitucion', e.target.value)}
-                        className="placeholder:text-gray-300"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit_fk_id_usuario">Usuario Asociado</Label>
-                      <select 
-                        id="edit_fk_id_usuario" 
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-gray-300"
-                        value={formData.fk_id_usuario || ""}
-                        onChange={(e) => handleInputChange('fk_id_usuario', e.target.value)}
-                      >
-                        <option value="" className="text-gray-300">
-                          {usuarios.length === 0 ? "No hay usuarios con rol socio" : "Seleccionar usuario..."}
-                        </option>
-                        {usuarios.map((usuario) => (
-                          <option key={usuario.id} value={usuario.id}>
-                            {usuario.nombre} ({usuario.email})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="contacto" className="space-y-4 mt-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit_email">Email *</Label>
-                      <Input 
-                        id="edit_email" 
-                        type="email" 
-                        placeholder="socio@email.com" 
-                        value={formData.email}
-                        onChange={(e) => handleInputChange('email', e.target.value)}
-                        className={`${errors.email ? "border-red-500" : ""} placeholder:text-gray-300`}
-                      />
-                      {errors.email && (
-                        <p className="text-red-500 text-xs">{errors.email}</p>
-                      )}
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit_telefono">Teléfono *</Label>
-                      <Input 
-                        id="edit_telefono" 
-                        placeholder="+54 11 1234-5678" 
-                        value={formData.telefono}
-                        onChange={(e) => handleInputChange('telefono', e.target.value)}
-                        className={`${errors.telefono ? "border-red-500" : ""} placeholder:text-gray-300`}
-                      />
-                      {errors.telefono && (
-                        <p className="text-red-500 text-xs">{errors.telefono}</p>
-                      )}
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit_web">Sitio Web</Label>
-                      <Input 
-                        id="edit_web" 
-                        placeholder="https://www.ejemplo.com" 
-                        value={formData.web}
-                        onChange={(e) => handleInputChange('web', e.target.value)}
-                        className="placeholder:text-gray-300"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit_direccion_fiscal">Dirección Fiscal *</Label>
-                      <Input 
-                        id="edit_direccion_fiscal" 
-                        placeholder="Dirección fiscal completa" 
-                        value={formData.direccion_fiscal}
-                        onChange={(e) => handleInputChange('direccion_fiscal', e.target.value)}
-                        className={`${errors.direccion_fiscal ? "border-red-500" : ""} placeholder:text-gray-300`}
-                      />
-                      {errors.direccion_fiscal && (
-                        <p className="text-red-500 text-xs">{errors.direccion_fiscal}</p>
-                      )}
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="fiscal" className="space-y-4 mt-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit_condicion_fiscal">Condición Fiscal *</Label>
-                      <select 
-                        id="edit_condicion_fiscal" 
-                        className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.condicion_fiscal ? "border-red-500" : "border-input"} placeholder:text-gray-300`}
-                        value={formData.condicion_fiscal}
-                        onChange={(e) => handleInputChange('condicion_fiscal', e.target.value)}
-                      >
-                        <option value="" className="text-gray-300">Seleccionar condición...</option>
-                        <option value="Responsable Inscripto">Responsable Inscripto</option>
-                        <option value="Monotributista">Monotributista</option>
-                        <option value="Exento">Exento</option>
-                        <option value="Consumidor Final">Consumidor Final</option>
-                      </select>
-                      {errors.condicion_fiscal && (
-                        <p className="text-red-500 text-xs">{errors.condicion_fiscal}</p>
-                      )}
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit_criterio_facturacion">Criterio de Facturación *</Label>
-                      <select 
-                        id="edit_criterio_facturacion" 
-                        className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.criterio_facturacion ? "border-red-500" : "border-input"} placeholder:text-gray-300`}
-                        value={formData.criterio_facturacion}
-                        onChange={(e) => handleInputChange('criterio_facturacion', e.target.value)}
-                      >
-                        <option value="" className="text-gray-300">Seleccionar criterio...</option>
-                        <option value="Anticipado">Anticipado</option>
-                        <option value="Por entrega">Por entrega</option>
-                        <option value="30 días">30 días</option>
-                        <option value="60 días">60 días</option>
-                        <option value="Contado">Contado</option>
-                      </select>
-                      {errors.criterio_facturacion && (
-                        <p className="text-red-500 text-xs">{errors.criterio_facturacion}</p>
-                      )}
-                    </div>
-                    <div className="grid gap-2 col-span-2">
-                      <Label htmlFor="edit_datos_bancarios">Datos Bancarios</Label>
-                      <textarea 
-                        id="edit_datos_bancarios" 
-                        className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-gray-300" 
-                        placeholder="Información bancaria (cuenta corriente, CBU, etc.)"
-                        value={formData.datos_bancarios}
-                        onChange={(e) => handleInputChange('datos_bancarios', e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="representante" className="space-y-4 mt-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit_representante_legal">Representante Legal *</Label>
-                      <Input 
-                        id="edit_representante_legal" 
-                        placeholder="Nombre completo del representante" 
-                        value={formData.representante_legal}
-                        onChange={(e) => handleInputChange('representante_legal', e.target.value)}
-                        className={`${errors.representante_legal ? "border-red-500" : ""} placeholder:text-gray-300`}
-                      />
-                      {errors.representante_legal && (
-                        <p className="text-red-500 text-xs">{errors.representante_legal}</p>
-                      )}
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit_dni_representante">DNI Representante *</Label>
-                      <Input 
-                        id="edit_dni_representante" 
-                        placeholder="12345678" 
-                        value={formData.dni_representante}
-                        onChange={(e) => handleInputChange('dni_representante', e.target.value)}
-                        className={`${errors.dni_representante ? "border-red-500" : ""} placeholder:text-gray-300`}
-                      />
-                      {errors.dni_representante && (
-                        <p className="text-red-500 text-xs">{errors.dni_representante}</p>
-                      )}
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit_cargo_representante">Cargo del Representante *</Label>
-                      <Input 
-                        id="edit_cargo_representante" 
-                        placeholder="Ej: Presidente, Gerente, etc." 
-                        value={formData.cargo_representante}
-                        onChange={(e) => handleInputChange('cargo_representante', e.target.value)}
-                        className={`${errors.cargo_representante ? "border-red-500" : ""} placeholder:text-gray-300`}
-                      />
-                      {errors.cargo_representante && (
-                        <p className="text-red-500 text-xs">{errors.cargo_representante}</p>
-                      )}
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit_actividad_economica">Actividad Económica</Label>
-                      <Input 
-                        id="edit_actividad_economica" 
-                        placeholder="Descripción de la actividad principal" 
-                        value={formData.actividad_economica}
-                        onChange={(e) => handleInputChange('actividad_economica', e.target.value)}
-                        className="placeholder:text-gray-300"
-                      />
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="adicional" className="space-y-4 mt-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit_registro_mercantil">Registro Mercantil</Label>
-                      <Input 
-                        id="edit_registro_mercantil" 
-                        placeholder="Número de registro mercantil" 
-                        value={formData.registro_mercantil}
-                        onChange={(e) => handleInputChange('registro_mercantil', e.target.value)}
-                        className="placeholder:text-gray-300"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit_status">Estado *</Label>
-                      <select 
-                        id="edit_status" 
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        value={formData.status}
-                        onChange={(e) => handleInputChange('status', e.target.value)}
-                      >
-                        <option value="Activo">Activo</option>
-                        <option value="Inactivo">Inactivo</option>
-                        <option value="Suspendido">Suspendido</option>
-                      </select>
-                    </div>
-                  </div>
-                </TabsContent>
-              </Tabs>
-              <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setIsEditDialogOpen(false)
-                    resetForm()
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  className="bg-black hover:bg-gray-800 text-white"
-                  onClick={handleSubmit}
-                >
-                  Actualizar Socio
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          {/* Popup Confirmación Borrar Socio */}
-          <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-            <DialogContent className="sm:max-w-[500px] bg-white border-0 shadow-2xl rounded-xl text-black">
-              <DialogHeader>
-                <DialogTitle>Confirmar Eliminación</DialogTitle>
-                <DialogDescription>
-                  ¿Estás seguro de que quieres eliminar el socio "{selectedMember?.razon_social}"?
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4">
-                <p className="text-sm text-gray-600 mb-4">
-                  Esta acción no se puede deshacer. Se eliminarán todos los datos asociados al socio.
-                </p>
-                {selectedMember && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <h4 className="font-medium text-red-800 mb-2">Socio a eliminar:</h4>
-                    <div className="text-sm text-red-700">
-                      <p><strong>Razón Social:</strong> {selectedMember.razon_social}</p>
-                      <p><strong>CUIT:</strong> {selectedMember.cuit}</p>
-                      <p><strong>Email:</strong> {selectedMember.email}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setIsDeleteDialogOpen(false)
-                    setSelectedMember(null)
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  className="bg-red-600 hover:bg-red-700 text-white"
-                  onClick={confirmDelete}
-                >
-                  Eliminar Socio
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
         </CardContent>
       </Card>
+
+      {/* Dialog de edición - similar estructura pero con handleUpdate */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white">
+          <DialogHeader>
+            <DialogTitle>Editar Socio</DialogTitle>
+            <DialogDescription>
+              Modifica los datos del socio seleccionado
+            </DialogDescription>
+          </DialogHeader>
+
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="identificacion">Identificación</TabsTrigger>
+              <TabsTrigger value="contacto">Contacto</TabsTrigger>
+              <TabsTrigger value="personal">Personal</TabsTrigger>
+              <TabsTrigger value="comercial">Comercial</TabsTrigger>
+            </TabsList>
+            
+            {/* Mismo contenido de las pestañas pero sin la pestaña usuario */}
+            <TabsContent value="identificacion" className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit_nombre_socio">Nombre del Socio *</Label>
+                  <Input
+                    id="edit_nombre_socio"
+                    value={formData.nombre_socio}
+                    onChange={(e) => setFormData({...formData, nombre_socio: e.target.value})}
+                    className={errors.nombre_socio ? "border-red-500" : ""}
+                  />
+                  {errors.nombre_socio && <p className="text-sm text-red-500">{errors.nombre_socio}</p>}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_razon_social">Razón Social *</Label>
+                  <Input
+                    id="edit_razon_social"
+                    value={formData.razon_social}
+                    onChange={(e) => setFormData({...formData, razon_social: e.target.value})}
+                    className={errors.razon_social ? "border-red-500" : ""}
+                  />
+                  {errors.razon_social && <p className="text-sm text-red-500">{errors.razon_social}</p>}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_nombre_fantasia">Nombre Fantasía</Label>
+                  <Input
+                    id="edit_nombre_fantasia"
+                    value={formData.nombre_fantasia}
+                    onChange={(e) => setFormData({...formData, nombre_fantasia: e.target.value})}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_cuit">CUIT *</Label>
+                  <Input
+                    id="edit_cuit"
+                    value={formData.cuit}
+                    onChange={(e) => setFormData({...formData, cuit: e.target.value})}
+                    className={errors.cuit ? "border-red-500" : ""}
+                  />
+                  {errors.cuit && <p className="text-sm text-red-500">{errors.cuit}</p>}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_documento">Documento *</Label>
+                  <Input
+                    id="edit_documento"
+                    value={formData.documento}
+                    onChange={(e) => setFormData({...formData, documento: e.target.value})}
+                    className={errors.documento ? "border-red-500" : ""}
+                  />
+                  {errors.documento && <p className="text-sm text-red-500">{errors.documento}</p>}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_nacionalidad">Nacionalidad</Label>
+                  <Input
+                    id="edit_nacionalidad"
+                    value={formData.nacionalidad}
+                    onChange={(e) => setFormData({...formData, nacionalidad: e.target.value})}
+                  />
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Pestaña Contacto */}
+            <TabsContent value="contacto" className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit_domicilio_comercial">Domicilio Comercial *</Label>
+                  <Input
+                    id="edit_domicilio_comercial"
+                    value={formData.domicilio_comercial}
+                    onChange={(e) => setFormData({...formData, domicilio_comercial: e.target.value})}
+                    className={errors.domicilio_comercial ? "border-red-500" : ""}
+                  />
+                  {errors.domicilio_comercial && <p className="text-sm text-red-500">{errors.domicilio_comercial}</p>}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_nro_comercial">Número Comercial</Label>
+                  <Input
+                    id="edit_nro_comercial"
+                    value={formData.nro_comercial}
+                    onChange={(e) => setFormData({...formData, nro_comercial: e.target.value})}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_mail">Email *</Label>
+                  <Input
+                    id="edit_mail"
+                    type="email"
+                    value={formData.mail}
+                    onChange={(e) => setFormData({...formData, mail: e.target.value})}
+                    className={errors.mail ? "border-red-500" : ""}
+                  />
+                  {errors.mail && <p className="text-sm text-red-500">{errors.mail}</p>}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_telefono_comercial">Teléfono Comercial</Label>
+                  <Input
+                    id="edit_telefono_comercial"
+                    value={formData.telefono_comercial}
+                    onChange={(e) => setFormData({...formData, telefono_comercial: e.target.value})}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_celular">Celular</Label>
+                  <Input
+                    id="edit_celular"
+                    value={formData.celular}
+                    onChange={(e) => setFormData({...formData, celular: e.target.value})}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_telefono_fijo">Teléfono Fijo</Label>
+                  <Input
+                    id="edit_telefono_fijo"
+                    value={formData.telefono_fijo}
+                    onChange={(e) => setFormData({...formData, telefono_fijo: e.target.value})}
+                  />
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Pestaña Personal */}
+            <TabsContent value="personal" className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit_fecha_nacimiento">Fecha de Nacimiento</Label>
+                  <Input
+                    id="edit_fecha_nacimiento"
+                    type="date"
+                    value={formData.fecha_nacimiento}
+                    onChange={(e) => setFormData({...formData, fecha_nacimiento: e.target.value})}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_estado_civil">Estado Civil</Label>
+                  <Select 
+                    value={formData.estado_civil} 
+                    onValueChange={(value) => setFormData({...formData, estado_civil: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar estado civil" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Soltero">Soltero</SelectItem>
+                      <SelectItem value="Casado">Casado</SelectItem>
+                      <SelectItem value="Divorciado">Divorciado</SelectItem>
+                      <SelectItem value="Viudo">Viudo</SelectItem>
+                      <SelectItem value="Unión de hecho">Unión de hecho</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_domicilio_personal">Domicilio Personal</Label>
+                  <Input
+                    id="edit_domicilio_personal"
+                    value={formData.domicilio_personal}
+                    onChange={(e) => setFormData({...formData, domicilio_personal: e.target.value})}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_nro_personal">Número Personal</Label>
+                  <Input
+                    id="edit_nro_personal"
+                    value={formData.nro_personal}
+                    onChange={(e) => setFormData({...formData, nro_personal: e.target.value})}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_localidad">Localidad</Label>
+                  <Input
+                    id="edit_localidad"
+                    value={formData.localidad}
+                    onChange={(e) => setFormData({...formData, localidad: e.target.value})}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_codigo_postal">Código Postal</Label>
+                  <Input
+                    id="edit_codigo_postal"
+                    value={formData.codigo_postal}
+                    onChange={(e) => setFormData({...formData, codigo_postal: e.target.value})}
+                  />
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Pestaña Comercial */}
+            <TabsContent value="comercial" className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit_rubro_id">Rubro</Label>
+                  <Select
+                    value={formData.rubro_id?.toString() || "0"}
+                    onValueChange={(value) => setFormData({...formData, rubro_id: value === "0" ? null : parseInt(value)})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar rubro" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px] overflow-y-auto">
+                      <SelectItem value="0">Ninguno</SelectItem>
+                      {rubros.map((rubro) => (
+                        <SelectItem key={rubro.id} value={rubro.id.toString()}>
+                          {rubro.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit_tipo_comercio_id">Tipo de Comercio</Label>
+                  <Select
+                    value={formData.tipo_comercio_id?.toString() || "0"}
+                    onValueChange={(value) => setFormData({...formData, tipo_comercio_id: value === "0" ? null : parseInt(value)})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar tipo de comercio" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px] overflow-y-auto">
+                      <SelectItem value="0">Ninguno</SelectItem>
+                      {tiposComercio.map((tipo) => (
+                        <SelectItem key={tipo.id} value={tipo.id.toString()}>
+                          {tipo.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_fecha_alta">Fecha de Alta</Label>
+                  <Input
+                    id="edit_fecha_alta"
+                    type="date"
+                    value={formData.fecha_alta}
+                    onChange={(e) => setFormData({...formData, fecha_alta: e.target.value})}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_fecha_baja">Fecha de Baja</Label>
+                  <Input
+                    id="edit_fecha_baja"
+                    type="date"
+                    value={formData.fecha_baja}
+                    onChange={(e) => setFormData({...formData, fecha_baja: e.target.value})}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_tipo_socio">Tipo de Socio</Label>
+                  <Select
+                    value={formData.tipo_socio}
+                    onValueChange={(value) => setFormData({...formData, tipo_socio: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Activo">Activo</SelectItem>
+                      <SelectItem value="Adherente">Adherente</SelectItem>
+                      <SelectItem value="Vitalicio">Vitalicio</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit_habilitado">Estado de Habilitación</Label>
+                  <Input
+                    id="edit_habilitado"
+                    value={formData.habilitado}
+                    onChange={(e) => setFormData({...formData, habilitado: e.target.value})}
+                  />
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          <div className="flex justify-end gap-2 mt-6">
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              <X className="mr-2 h-4 w-4" />
+              Cancelar
+            </Button>
+            <Button onClick={handleUpdate} disabled={saving}>
+              <Save className="mr-2 h-4 w-4" />
+              {saving ? "Guardando..." : "Actualizar Socio"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tabla de Gestión de Rubros */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-green-700">Gestión de Rubros</CardTitle>
+              <CardDescription>Administra los rubros de actividad de los socios</CardDescription>
+            </div>
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={() => setIsRubroDialogOpen(true)}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Nuevo Rubro
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nombre</TableHead>
+                <TableHead>Descripción</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rubros
+                .slice((currentRubrosPage - 1) * itemsPerPage, currentRubrosPage * itemsPerPage)
+                .map((rubro) => (
+                  <TableRow key={rubro.id}>
+                    <TableCell className="font-medium">{rubro.nombre}</TableCell>
+                    <TableCell>{rubro.descripcion}</TableCell>
+                    <TableCell>
+                      <Badge variant={rubro.activo ? "default" : "secondary"}>
+                        {rubro.activo ? "Activo" : "Inactivo"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="sm">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              }
+            </TableBody>
+          </Table>
+
+          {/* Paginación para Rubros */}
+          <div className="flex items-center justify-between space-x-2 py-4">
+            <div className="text-sm text-muted-foreground">
+              Mostrando {Math.min((currentRubrosPage - 1) * itemsPerPage + 1, rubros.length)} a {Math.min(currentRubrosPage * itemsPerPage, rubros.length)} de {rubros.length} rubros
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentRubrosPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentRubrosPage === 1}
+              >
+                Anterior
+              </Button>
+              <div className="text-sm">
+                Página {currentRubrosPage} de {Math.ceil(rubros.length / itemsPerPage)}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentRubrosPage(prev => Math.min(prev + 1, Math.ceil(rubros.length / itemsPerPage)))}
+                disabled={currentRubrosPage === Math.ceil(rubros.length / itemsPerPage)}
+              >
+                Siguiente
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tabla de Gestión de Tipos de Comercio */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-purple-700">Gestión de Tipos de Comercio</CardTitle>
+              <CardDescription>Administra los tipos de comercio disponibles para los socios</CardDescription>
+            </div>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => setIsTipoComercioDialogOpen(true)}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Nuevo Tipo de Comercio
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nombre</TableHead>
+                <TableHead>Descripción</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tiposComercio
+                .slice((currentTipoComerciosPage - 1) * itemsPerPage, currentTipoComerciosPage * itemsPerPage)
+                .map((tipo) => (
+                  <TableRow key={tipo.id}>
+                    <TableCell className="font-medium">{tipo.nombre}</TableCell>
+                    <TableCell>{tipo.descripcion}</TableCell>
+                    <TableCell>
+                      <Badge variant={tipo.activo ? "default" : "secondary"}>
+                        {tipo.activo ? "Activo" : "Inactivo"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="sm">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              }
+            </TableBody>
+          </Table>
+
+          {/* Paginación para Tipos de Comercio */}
+          <div className="flex items-center justify-between space-x-2 py-4">
+            <div className="text-sm text-muted-foreground">
+              Mostrando {Math.min((currentTipoComerciosPage - 1) * itemsPerPage + 1, tiposComercio.length)} a {Math.min(currentTipoComerciosPage * itemsPerPage, tiposComercio.length)} de {tiposComercio.length} tipos de comercio
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentTipoComerciosPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentTipoComerciosPage === 1}
+              >
+                Anterior
+              </Button>
+              <div className="text-sm">
+                Página {currentTipoComerciosPage} de {Math.ceil(tiposComercio.length / itemsPerPage)}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentTipoComerciosPage(prev => Math.min(prev + 1, Math.ceil(tiposComercio.length / itemsPerPage)))}
+                disabled={currentTipoComerciosPage === Math.ceil(tiposComercio.length / itemsPerPage)}
+              >
+                Siguiente
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Dialog para crear nuevo rubro */}
+      <Dialog open={isRubroDialogOpen} onOpenChange={setIsRubroDialogOpen}>
+        <DialogContent className="max-w-md bg-white">
+          <DialogHeader>
+            <DialogTitle>Crear Nuevo Rubro</DialogTitle>
+            <DialogDescription>
+              Agrega un nuevo rubro de actividad para los socios
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="nuevo_rubro_nombre">Nombre *</Label>
+              <Input
+                id="nuevo_rubro_nombre"
+                value={nuevoRubro.nombre}
+                onChange={(e) => setNuevoRubro({...nuevoRubro, nombre: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nuevo_rubro_descripcion">Descripción</Label>
+              <Input
+                id="nuevo_rubro_descripcion"
+                value={nuevoRubro.descripcion}
+                onChange={(e) => setNuevoRubro({...nuevoRubro, descripcion: e.target.value})}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-6">
+            <Button variant="outline" onClick={() => setIsRubroDialogOpen(false)}>
+              <X className="mr-2 h-4 w-4" />
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateRubro} className="bg-green-600 hover:bg-green-700 text-white">
+              <Save className="mr-2 h-4 w-4" />
+              Crear Rubro
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para crear nuevo tipo de comercio */}
+      <Dialog open={isTipoComercioDialogOpen} onOpenChange={setIsTipoComercioDialogOpen}>
+        <DialogContent className="max-w-md bg-white">
+          <DialogHeader>
+            <DialogTitle>Crear Nuevo Tipo de Comercio</DialogTitle>
+            <DialogDescription>
+              Agrega un nuevo tipo de comercio para los socios
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="nuevo_tipo_comercio_nombre">Nombre *</Label>
+              <Input
+                id="nuevo_tipo_comercio_nombre"
+                value={nuevoTipoComercio.nombre}
+                onChange={(e) => setNuevoTipoComercio({...nuevoTipoComercio, nombre: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nuevo_tipo_comercio_descripcion">Descripción</Label>
+              <Input
+                id="nuevo_tipo_comercio_descripcion"
+                value={nuevoTipoComercio.descripcion}
+                onChange={(e) => setNuevoTipoComercio({...nuevoTipoComercio, descripcion: e.target.value})}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-6">
+            <Button variant="outline" onClick={() => setIsTipoComercioDialogOpen(false)}>
+              <X className="mr-2 h-4 w-4" />
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateTipoComercio} className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Save className="mr-2 h-4 w-4" />
+              Crear Tipo de Comercio
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para migrar socios desde Excel/CSV */}
+      <Dialog open={isMigrationDialogOpen} onOpenChange={setIsMigrationDialogOpen}>
+        <DialogContent className="max-w-md bg-white">
+          <DialogHeader>
+            <DialogTitle>Migrar Socios desde Archivo</DialogTitle>
+            <DialogDescription>
+              Importa socios desde un archivo Excel (.xlsx, .xls) o CSV (.csv)
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="migration_file">Archivo de migración</Label>
+              <Input
+                id="migration_file"
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={handleFileChange}
+                disabled={migrating}
+              />
+              {migrationFile && (
+                <p className="text-sm text-green-600">
+                  Archivo seleccionado: {migrationFile.name}
+                </p>
+              )}
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h4 className="font-medium text-sm mb-2">Columnas requeridas en el archivo:</h4>
+              <div className="text-xs text-gray-600 space-y-1">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>• nombre_socio</div>
+                  <div>• tipo_socio</div>
+                  <div>• razon_social</div>
+                  <div>• nombre_fantasia</div>
+                  <div>• domicilio_comercial</div>
+                  <div>• nro_comercial</div>
+                  <div>• telefono_comercial</div>
+                  <div>• celular</div>
+                  <div>• mail</div>
+                  <div>• comercializa</div>
+                  <div>• rubro</div>
+                  <div>• fecha_alta</div>
+                  <div>• fecha_baja</div>
+                  <div>• fecha_nacimiento</div>
+                  <div>• documento</div>
+                  <div>• nacionalidad</div>
+                  <div>• estado_civil</div>
+                  <div>• domicilio_personal</div>
+                  <div>• nro_personal</div>
+                  <div>• localidad</div>
+                  <div>• codigo_postal</div>
+                  <div>• telefono_fijo</div>
+                  <div>• cuit</div>
+                  <div>• habilitado</div>
+                </div>
+              </div>
+              <p className="text-xs text-blue-600 mt-2">
+                Nota: Los campos 'rubro' y 'comercializa' deben contener los nombres exactos de las tablas de referencia.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsMigrationDialogOpen(false)
+                setMigrationFile(null)
+              }}
+              disabled={migrating}
+            >
+              <X className="mr-2 h-4 w-4" />
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleMigration}
+              disabled={!migrationFile || migrating}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {migrating ? "Migrando..." : "Migrar Socios"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

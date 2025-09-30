@@ -415,3 +415,6 @@ Pagos registrados por los socios (para el módulo de contabilidad).
 
 
 
+
+
+

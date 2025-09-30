@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Edit, Trash2, Shield, Settings, Users, Key, Save, X } from "lucide-react"
 import { Usuario } from "@/lib/supabase"
@@ -30,8 +31,14 @@ export function AdminModule() {
   // Estados para popups
   const [isNewUserDialogOpen, setIsNewUserDialogOpen] = useState(false)
   const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<Usuario | null>(null)
+  const [userToDelete, setUserToDelete] = useState<Usuario | null>(null)
+  const [userToChangePassword, setUserToChangePassword] = useState<Usuario | null>(null)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [changingPassword, setChangingPassword] = useState(false)
   
   // Estados para formularios
   const [newUser, setNewUser] = useState({
@@ -54,6 +61,18 @@ export function AdminModule() {
     status: 'Activo' as 'Activo' | 'Inactivo' | 'Bloqueado',
     prueba_gratis: false
   })
+
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
+
+  // Función para actualizar el formulario de contraseña y limpiar errores
+  const updatePasswordForm = (field: string, value: string) => {
+    setPasswordForm(prev => ({ ...prev, [field]: value }))
+    setError(null) // Limpiar error cuando el usuario escriba
+  }
 
   const [systemConfig] = useState({
     organizationName: "AgrupaciónSan Martín",
@@ -86,6 +105,116 @@ export function AdminModule() {
 
     cargarDatos()
   }, [])
+
+  // Función para abrir diálogo de eliminación
+  const handleDeleteUser = (user: Usuario) => {
+    setUserToDelete(user)
+    setIsDeleteDialogOpen(true)
+  }
+
+  // Función para confirmar eliminación
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return
+
+    try {
+      setDeleting(true)
+      
+      // Llamar API para eliminar usuario
+      const response = await fetch('/api/auth/delete-user', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: userToDelete.id })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error eliminando usuario')
+      }
+
+      // Recargar datos
+      const [usuariosData, estadisticasData] = await Promise.all([
+        getUsuarios(),
+        getEstadisticasUsuarios()
+      ])
+      setUsers(usuariosData)
+      setEstadisticas(estadisticasData)
+      
+      // Cerrar diálogo
+      setIsDeleteDialogOpen(false)
+      setUserToDelete(null)
+      setError(null)
+    } catch (err: any) {
+      console.error('Error eliminando usuario:', err)
+      setError(err.message)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  // Función para abrir diálogo de cambio de contraseña
+  const handleChangePassword = (user: Usuario) => {
+    setUserToChangePassword(user)
+    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+    setError(null) // Limpiar errores previos
+    setIsPasswordDialogOpen(true)
+  }
+
+  // Función para cambiar contraseña
+  const handlePasswordChange = async () => {
+    if (!userToChangePassword) return
+
+    // Validaciones
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      setError('Todos los campos son obligatorios')
+      return
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setError('Las contraseñas nuevas no coinciden')
+      return
+    }
+
+    if (passwordForm.newPassword.length < 8) {
+      setError('La nueva contraseña debe tener al menos 8 caracteres')
+      return
+    }
+
+    if (!/(?=.*[a-zA-Z])(?=.*\d)/.test(passwordForm.newPassword)) {
+      setError('La nueva contraseña debe contener al menos una letra y un número')
+      return
+    }
+
+    try {
+      setChangingPassword(true)
+      
+      // Llamar API para cambiar contraseña
+      const response = await fetch('/api/auth/change-password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userToChangePassword.id,
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Error cambiando contraseña')
+      }
+
+      // Cerrar diálogo
+      setIsPasswordDialogOpen(false)
+      setUserToChangePassword(null)
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      setError(null)
+    } catch (err: any) {
+      console.error('Error cambiando contraseña:', err)
+      setError(err.message)
+    } finally {
+      setChangingPassword(false)
+    }
+  }
 
   // Función para formatear fecha
   const formatearFecha = (fecha: string | null) => {
@@ -359,6 +488,7 @@ export function AdminModule() {
                       <TableHead className="font-semibold">Email</TableHead>
                       <TableHead className="font-semibold">Teléfono</TableHead>
                       <TableHead className="font-semibold">Rol</TableHead>
+                      <TableHead className="font-semibold">Socio Relacionado</TableHead>
                       <TableHead className="font-semibold">Estado</TableHead>
                       <TableHead className="font-semibold">Prueba Gratis</TableHead>
                       <TableHead className="font-semibold">Último Acceso</TableHead>
@@ -376,6 +506,18 @@ export function AdminModule() {
                             <Shield className="mr-1 h-3 w-3" />
                             {user.rol === "admin" ? "Administrador" : user.rol === "supervisor" ? "Supervisor" : "Socio"}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {user.rol === 'socio' && user.socios && user.socios.length > 0 ? (
+                            <div className="flex flex-col">
+                              <span className="font-medium text-sm">{user.socios[0].razon_social}</span>
+                              <span className="text-xs text-muted-foreground">ID: {user.socios[0].id}</span>
+                            </div>
+                          ) : user.rol === 'socio' ? (
+                            <span className="text-sm text-red-600">Sin socio asignado</span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge variant={user.status === "Activo" ? "default" : "secondary"} className={user.status === "Activo" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>{user.status}</Badge>
@@ -396,10 +538,22 @@ export function AdminModule() {
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-800">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-gray-600 hover:text-gray-800"
+                              onClick={() => handleChangePassword(user)}
+                              title="Cambiar contraseña"
+                            >
                               <Key className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-800">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-red-600 hover:text-red-800"
+                              onClick={() => handleDeleteUser(user)}
+                              title="Eliminar usuario"
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -428,7 +582,6 @@ export function AdminModule() {
                     <ul className="text-sm text-muted-foreground space-y-1">
                       <li>• Acceso completo al sistema</li>
                       <li>• Gestión de usuarios y configuración</li>
-                      <li>• Administración de proveedores</li>
                       <li>• Facturación y cuentas corrientes</li>
                       <li>• Gestión de permisos y módulos</li>
                     </ul>
@@ -439,7 +592,7 @@ export function AdminModule() {
                       <h4 className="font-medium">Supervisor (supervisor)</h4>
                     </div>
                     <ul className="text-sm text-muted-foreground space-y-1">
-                      <li>• Gestión de socios y pedidos</li>
+                      <li>• Gestión de socios</li>
                       <li>• Ver reportes y estadísticas</li>
                       <li>• Administración de listas de precios</li>
                       <li>• Gestión de facturación</li>
@@ -452,8 +605,6 @@ export function AdminModule() {
                     </div>
                     <ul className="text-sm text-muted-foreground space-y-1">
                       <li>• Ver listas de precios</li>
-                      <li>• Realizar pedidos</li>
-                      <li>• Ver historial de pedidos</li>
                       <li>• Consultar cuenta corriente</li>
                     </ul>
                   </div>
@@ -678,6 +829,166 @@ export function AdminModule() {
                 {saving ? 'Guardando...' : 'Actualizar Usuario'}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de confirmación para eliminar usuario */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent className="bg-white border-0 shadow-2xl rounded-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-semibold text-red-600">
+              ¿Eliminar usuario?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-600">
+              {userToDelete && 
+                `Estás a punto de eliminar al usuario ${userToDelete.nombre} (${userToDelete.email}).`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          {/* Contenido adicional fuera del AlertDialogDescription */}
+          {userToDelete && (
+            <div className="px-6 pb-4">
+              <p className="text-gray-600 mb-3">
+                Esta acción no se puede deshacer y eliminará:
+              </p>
+              <div className="space-y-2 text-sm text-gray-500">
+                <div className="flex items-center">
+                  <span className="w-2 h-2 bg-red-400 rounded-full mr-3"></span>
+                  El usuario de Clerk
+                </div>
+                <div className="flex items-center">
+                  <span className="w-2 h-2 bg-red-400 rounded-full mr-3"></span>
+                  El registro en la base de datos
+                </div>
+                <div className="flex items-center">
+                  <span className="w-2 h-2 bg-red-400 rounded-full mr-3"></span>
+                  Todas las relaciones asociadas
+                </div>
+              </div>
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-11 px-6">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteUser}
+              disabled={deleting}
+              className="h-11 px-6 bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Eliminando...
+                </>
+              ) : (
+                'Eliminar Usuario'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Diálogo para cambiar contraseña */}
+      <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] bg-white border-0 shadow-2xl rounded-xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold">
+              Cambiar Contraseña
+            </DialogTitle>
+            <DialogDescription className="text-gray-600">
+              {userToChangePassword && (
+                <>Cambiar la contraseña de <strong>{userToChangePassword.nombre}</strong></>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-6 py-4">
+            {/* Contraseña actual */}
+            <div className="grid gap-2">
+              <Label htmlFor="current-password" className="text-sm font-medium">
+                Contraseña Actual <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="current-password"
+                type="password"
+                placeholder="Ingresa la contraseña actual"
+                value={passwordForm.currentPassword}
+                onChange={(e) => updatePasswordForm('currentPassword', e.target.value)}
+                className="h-11"
+              />
+            </div>
+
+            {/* Nueva contraseña */}
+            <div className="grid gap-2">
+              <Label htmlFor="new-password" className="text-sm font-medium">
+                Nueva Contraseña <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="new-password"
+                type="password"
+                placeholder="Mínimo 8 caracteres, letra + número"
+                value={passwordForm.newPassword}
+                onChange={(e) => updatePasswordForm('newPassword', e.target.value)}
+                className="h-11"
+              />
+            </div>
+
+            {/* Confirmar nueva contraseña */}
+            <div className="grid gap-2">
+              <Label htmlFor="confirm-password" className="text-sm font-medium">
+                Confirmar Nueva Contraseña <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                placeholder="Repite la nueva contraseña"
+                value={passwordForm.confirmPassword}
+                onChange={(e) => updatePasswordForm('confirmPassword', e.target.value)}
+                className="h-11"
+              />
+            </div>
+
+            {/* Mostrar error si existe */}
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsPasswordDialogOpen(false)
+                setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+                setError(null)
+              }}
+              disabled={changingPassword}
+              className="h-11 px-6"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handlePasswordChange}
+              disabled={changingPassword || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
+              className="bg-black hover:bg-gray-800 text-white h-11 px-6"
+            >
+              {changingPassword ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Cambiando...
+                </>
+              ) : (
+                <>
+                  <Key className="mr-2 h-4 w-4" />
+                  Cambiar Contraseña
+                </>
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

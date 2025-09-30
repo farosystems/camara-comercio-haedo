@@ -52,35 +52,87 @@ CREATE TABLE permisos_usuarios (
 );
 
 -- =====================================================
--- TABLA 4: SOCIOS (SOCIOS)
+-- TABLA 4: TIPO_COMERCIOS (TIPO_COMERCIOS)
 -- =====================================================
-CREATE TABLE socios (
+CREATE TABLE tipo_comercios (
     id BIGSERIAL PRIMARY KEY,
-    razon_social VARCHAR(255) NOT NULL,
-    cuit VARCHAR(15) UNIQUE NOT NULL,
-    tipo_sociedad VARCHAR(50) NOT NULL CHECK (tipo_sociedad IN ('S.R.L.', 'S.A.', 'Monotributista', 'Autónomo', 'Otro')),
-    fecha_constitucion DATE,
-    registro_mercantil VARCHAR(100),
-    direccion_fiscal VARCHAR(255) NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    telefono VARCHAR(20) NOT NULL,
-    web VARCHAR(255),
-    condicion_fiscal VARCHAR(50) NOT NULL CHECK (condicion_fiscal IN ('Responsable Inscripto', 'Monotributista', 'Exento', 'Consumidor Final')),
-    datos_bancarios TEXT,
-    criterio_facturacion VARCHAR(50) NOT NULL CHECK (criterio_facturacion IN ('Anticipado', 'Por entrega', '30 días', '60 días', 'Contado')),
-    representante_legal VARCHAR(100) NOT NULL,
-    dni_representante VARCHAR(15) NOT NULL,
-    cargo_representante VARCHAR(100) NOT NULL,
-    actividad_economica VARCHAR(255),
-    logo_path VARCHAR(255),
-    status VARCHAR(20) NOT NULL DEFAULT 'Activo' CHECK (status IN ('Activo', 'Inactivo', 'Suspendido')),
-    fecha_alta DATE NOT NULL DEFAULT CURRENT_DATE,
+    nombre VARCHAR(100) UNIQUE NOT NULL,
+    descripcion TEXT,
+    activo BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- =====================================================
--- TABLA 5: CARGOS (CARGOS)
+-- TABLA 5: RUBROS (RUBROS)
+-- =====================================================
+CREATE TABLE rubros (
+    id BIGSERIAL PRIMARY KEY,
+    nombre VARCHAR(100) UNIQUE NOT NULL,
+    descripcion TEXT,
+    activo BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- =====================================================
+-- TABLA 6: SOCIOS (SOCIOS)
+-- =====================================================
+CREATE TABLE socios (
+    id BIGSERIAL PRIMARY KEY,
+
+    -- Campos de identificación del socio
+    nombre_socio VARCHAR(255) NOT NULL,
+    razon_social VARCHAR(255) NOT NULL,
+    nombre_fantasia VARCHAR(255),
+
+    -- Domicilio comercial
+    domicilio_comercial VARCHAR(255) NOT NULL,
+    nro_comercial VARCHAR(20),
+
+    -- Contacto comercial
+    telefono_comercial VARCHAR(20),
+    celular VARCHAR(20),
+    mail VARCHAR(100) UNIQUE NOT NULL,
+
+    -- Comercialización (eliminado comercializa boolean y otros campos comerciales)
+    rubro_id BIGINT REFERENCES rubros(id) ON DELETE SET NULL,
+    tipo_comercio_id BIGINT REFERENCES tipo_comercios(id) ON DELETE SET NULL,
+
+    -- Fechas de alta/baja
+    fecha_alta DATE NOT NULL DEFAULT (CURRENT_DATE AT TIME ZONE 'America/Argentina/Buenos_Aires'),
+    fecha_baja DATE,
+
+    -- Datos personales del representante
+    fecha_nacimiento DATE,
+    documento VARCHAR(15) NOT NULL,
+    estado_civil VARCHAR(20) CHECK (estado_civil IN ('Soltero', 'Casado', 'Divorciado', 'Viudo', 'Unión de hecho')),
+    nacionalidad VARCHAR(50) DEFAULT 'Argentina',
+
+    -- Domicilio personal
+    domicilio_personal VARCHAR(255),
+    nro_personal VARCHAR(20),
+    localidad VARCHAR(100),
+    codigo_postal VARCHAR(10),
+    telefono_fijo VARCHAR(20),
+
+    -- Datos fiscales
+    cuit VARCHAR(15) UNIQUE NOT NULL,
+
+    -- Estado del socio (habilitado cambiado a VARCHAR, status cambiado a tipo_socio)
+    habilitado VARCHAR(255),
+    tipo_socio VARCHAR(20) NOT NULL DEFAULT 'Activo' CHECK (tipo_socio IN ('Activo', 'Adherente', 'Vitalicio')),
+
+    -- Relación con usuarios (mantener funcionalidad existente)
+    fk_id_usuario BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+
+    -- Campos de auditoría
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- =====================================================
+-- TABLA 7: CARGOS (CARGOS)
 -- =====================================================
 CREATE TABLE cargos (
     id BIGSERIAL PRIMARY KEY,
@@ -95,7 +147,7 @@ CREATE TABLE cargos (
 );
 
 -- =====================================================
--- TABLA 6: MOVIMIENTOS_SOCIOS (MOVIMIENTOS_SOCIOS)
+-- TABLA 8: MOVIMIENTOS_SOCIOS (MOVIMIENTOS_SOCIOS)
 -- =====================================================
 CREATE TABLE movimientos_socios (
     id BIGSERIAL PRIMARY KEY,
@@ -106,41 +158,11 @@ CREATE TABLE movimientos_socios (
     monto DECIMAL(10,2) NOT NULL,
     comprobante VARCHAR(50) NOT NULL,
     saldo DECIMAL(10,2) NOT NULL CHECK (saldo >= 0),
-    estado VARCHAR(20) NOT NULL DEFAULT 'Pendiente' CHECK (estado IN ('Pendiente', 'Pagado', 'Vencido', 'Anulado')),
+    estado VARCHAR(20) NOT NULL DEFAULT 'Pendiente' CHECK (estado IN ('Pendiente', 'Cobrada', 'Vencida', 'Anulado')),
     metodo_pago VARCHAR(20) CHECK (metodo_pago IN ('Efectivo', 'Transferencia', 'Cheque', 'Tarjeta', 'Otro')),
     referencia VARCHAR(100),
     fecha_vencimiento DATE,
     fk_id_cargo BIGINT REFERENCES cargos(id) ON DELETE SET NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- =====================================================
--- TABLA 7: PROVEEDORES (PROVEEDORES)
--- =====================================================
-CREATE TABLE proveedores (
-    id BIGSERIAL PRIMARY KEY,
-    nombre VARCHAR(255) NOT NULL,
-    contacto VARCHAR(100) NOT NULL,
-    telefono VARCHAR(20) NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    cuit VARCHAR(15) UNIQUE NOT NULL,
-    direccion VARCHAR(255),
-    metodos_pago JSONB,
-    status VARCHAR(20) NOT NULL DEFAULT 'Activo' CHECK (status IN ('Activo', 'Inactivo')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- =====================================================
--- TABLA 8: LISTAS_PRECIOS (LISTAS_PRECIOS)
--- =====================================================
-CREATE TABLE listas_precios (
-    id BIGSERIAL PRIMARY KEY,
-    fk_id_proveedor BIGINT NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
-    nombre VARCHAR(255) NOT NULL,
-    fecha_carga DATE NOT NULL DEFAULT CURRENT_DATE,
-    status VARCHAR(20) NOT NULL DEFAULT 'Activa' CHECK (status IN ('Activa', 'Inactiva', 'Vencida')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -155,27 +177,14 @@ CREATE TABLE productos (
     categoria VARCHAR(100) NOT NULL,
     marca VARCHAR(100) NOT NULL,
     descripcion TEXT,
-    fk_id_lista_precio BIGINT REFERENCES listas_precios(id) ON DELETE SET NULL,
     activo BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- =====================================================
--- TABLA 10: ITEMS_LISTA_PRECIOS (ITEMS_LISTA_PRECIOS)
--- =====================================================
-CREATE TABLE items_lista_precios (
-    id BIGSERIAL PRIMARY KEY,
-    fk_id_lista_precio BIGINT NOT NULL REFERENCES listas_precios(id) ON DELETE CASCADE,
-    fk_id_producto BIGINT NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
-    precio DECIMAL(10,2) NOT NULL CHECK (precio > 0),
-    descuento DECIMAL(5,2) DEFAULT 0 CHECK (descuento >= 0 AND descuento <= 100),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(fk_id_lista_precio, fk_id_producto)
-);
 
 -- =====================================================
--- TABLA 11: CONDICIONES_COMPRA (CONDICIONES_COMPRA)
+-- TABLA 10: CONDICIONES_COMPRA (CONDICIONES_COMPRA)
 -- =====================================================
 CREATE TABLE condiciones_compra (
     id BIGSERIAL PRIMARY KEY,
@@ -185,45 +194,13 @@ CREATE TABLE condiciones_compra (
     descuento DECIMAL(5,2) DEFAULT 0 CHECK (descuento >= 0 AND descuento <= 100),
     recargo DECIMAL(5,2) DEFAULT 0 CHECK (recargo >= 0 AND recargo <= 100),
     dias_pago INTEGER NOT NULL DEFAULT 0 CHECK (dias_pago >= 0),
-    fk_id_proveedor BIGINT REFERENCES proveedores(id) ON DELETE SET NULL,
     activo BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- =====================================================
--- TABLA 12: PEDIDOS (PEDIDOS)
--- =====================================================
-CREATE TABLE pedidos (
-    id VARCHAR(20) PRIMARY KEY,
-    fk_id_socio BIGINT NOT NULL REFERENCES socios(id) ON DELETE CASCADE,
-    fk_id_proveedor BIGINT NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
-    fecha DATE NOT NULL DEFAULT CURRENT_DATE,
-    total DECIMAL(10,2) NOT NULL CHECK (total > 0),
-    estado VARCHAR(20) NOT NULL DEFAULT 'Pendiente' CHECK (estado IN ('Pendiente', 'Procesado', 'Entregado', 'Cancelado')),
-    metodo_pago VARCHAR(100) NOT NULL,
-    observaciones TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- =====================================================
--- TABLA 13: ITEMS_PEDIDO (ITEMS_PEDIDO)
--- =====================================================
-CREATE TABLE items_pedido (
-    id BIGSERIAL PRIMARY KEY,
-    fk_id_pedido VARCHAR(20) NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
-    fk_id_producto BIGINT NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
-    cantidad INTEGER NOT NULL CHECK (cantidad > 0),
-    precio_unitario DECIMAL(10,2) NOT NULL CHECK (precio_unitario > 0),
-    descuento DECIMAL(5,2) DEFAULT 0 CHECK (descuento >= 0 AND descuento <= 100),
-    subtotal DECIMAL(10,2) NOT NULL CHECK (subtotal > 0),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-
--- =====================================================
--- TABLA 14: CONFIGURACION_SISTEMA (CONFIGURACION_SISTEMA)
+-- TABLA 11: CONFIGURACION_SISTEMA (CONFIGURACION_SISTEMA)
 -- =====================================================
 CREATE TABLE configuracion_sistema (
     id BIGSERIAL PRIMARY KEY,
@@ -236,7 +213,7 @@ CREATE TABLE configuracion_sistema (
 );
 
 -- =====================================================
--- TABLA 15: FACTURAS (FACTURAS)
+-- TABLA 12: FACTURAS (FACTURAS)
 -- =====================================================
 CREATE TABLE facturas (
     id VARCHAR(20) PRIMARY KEY,
@@ -251,15 +228,30 @@ CREATE TABLE facturas (
 );
 
 -- =====================================================
--- TABLA 16: PAGOS (PAGOS)
+-- TABLA 13: CUENTAS_TESORERIA (CUENTAS_TESORERIA)
+-- =====================================================
+CREATE TABLE cuentas_tesoreria (
+    id BIGSERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    tipo VARCHAR(50) NOT NULL CHECK (tipo IN ('Efectivo', 'Banco', 'Tarjeta', 'Transferencia', 'Cheque', 'Digital', 'Otro')),
+    descripcion TEXT,
+    numero_cuenta VARCHAR(50),
+    banco VARCHAR(100),
+    activa BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- =====================================================
+-- TABLA 14: PAGOS (PAGOS)
 -- =====================================================
 CREATE TABLE pagos (
     id VARCHAR(20) PRIMARY KEY,
     fk_id_socio BIGINT NOT NULL REFERENCES socios(id) ON DELETE CASCADE,
     fecha DATE NOT NULL DEFAULT CURRENT_DATE,
     monto DECIMAL(10,2) NOT NULL CHECK (monto > 0),
-    metodo VARCHAR(20) NOT NULL CHECK (metodo IN ('Efectivo', 'Transferencia', 'Cheque', 'Tarjeta')),
-    fk_id_factura VARCHAR(20) REFERENCES facturas(id) ON DELETE SET NULL,
+    fk_id_movimiento BIGINT REFERENCES movimientos_socios(id) ON DELETE SET NULL,
+    fk_id_cuenta_tesoreria BIGINT REFERENCES cuentas_tesoreria(id) ON DELETE SET NULL,
     referencia VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -284,11 +276,24 @@ CREATE INDEX idx_permisos_usuarios_usuario ON permisos_usuarios(fk_id_usuario);
 CREATE INDEX idx_permisos_usuarios_modulo ON permisos_usuarios(fk_id_modulo);
 CREATE INDEX idx_permisos_usuarios_puede_ver ON permisos_usuarios(puede_ver);
 
+-- Índices para TIPO_COMERCIOS
+CREATE INDEX idx_tipo_comercios_nombre ON tipo_comercios(nombre);
+CREATE INDEX idx_tipo_comercios_activo ON tipo_comercios(activo);
+
+-- Índices para RUBROS
+CREATE INDEX idx_rubros_nombre ON rubros(nombre);
+CREATE INDEX idx_rubros_activo ON rubros(activo);
+
 -- Índices para SOCIOS
 CREATE INDEX idx_socios_cuit ON socios(cuit);
-CREATE INDEX idx_socios_status ON socios(status);
+CREATE INDEX idx_socios_mail ON socios(mail);
+CREATE INDEX idx_socios_tipo_socio ON socios(tipo_socio);
+CREATE INDEX idx_socios_habilitado ON socios(habilitado);
+CREATE INDEX idx_socios_documento ON socios(documento);
+CREATE INDEX idx_socios_usuario_id ON socios(fk_id_usuario);
 CREATE INDEX idx_socios_fecha_alta ON socios(fecha_alta);
-CREATE INDEX idx_socios_email ON socios(email);
+CREATE INDEX idx_socios_rubro_id ON socios(rubro_id);
+CREATE INDEX idx_socios_tipo_comercio_id ON socios(tipo_comercio_id);
 
 -- Índices para MOVIMIENTOS_SOCIOS
 CREATE INDEX idx_movimientos_socios_socio_id ON movimientos_socios(fk_id_socio);
@@ -297,39 +302,18 @@ CREATE INDEX idx_movimientos_socios_tipo ON movimientos_socios(tipo);
 CREATE INDEX idx_movimientos_socios_estado ON movimientos_socios(estado);
 CREATE INDEX idx_movimientos_socios_cargo_id ON movimientos_socios(fk_id_cargo);
 
--- Índices para PROVEEDORES
-CREATE INDEX idx_proveedores_cuit ON proveedores(cuit);
-CREATE INDEX idx_proveedores_status ON proveedores(status);
-CREATE INDEX idx_proveedores_email ON proveedores(email);
 
 -- Índices para PRODUCTOS
 CREATE INDEX idx_productos_codigo ON productos(codigo);
 CREATE INDEX idx_productos_categoria ON productos(categoria);
 CREATE INDEX idx_productos_activo ON productos(activo);
-CREATE INDEX idx_productos_lista_precio_id ON productos(fk_id_lista_precio);
 
--- Índices para LISTAS_PRECIOS
-CREATE INDEX idx_listas_precios_proveedor_id ON listas_precios(fk_id_proveedor);
-CREATE INDEX idx_listas_precios_status ON listas_precios(status);
-CREATE INDEX idx_listas_precios_fecha_carga ON listas_precios(fecha_carga);
 
--- Índices para ITEMS_LISTA_PRECIOS
-CREATE INDEX idx_items_lista_precios_lista_precio_id ON items_lista_precios(fk_id_lista_precio);
-CREATE INDEX idx_items_lista_precios_producto_id ON items_lista_precios(fk_id_producto);
 
 -- Índices para CONDICIONES_COMPRA
-CREATE INDEX idx_condiciones_compra_proveedor_id ON condiciones_compra(fk_id_proveedor);
 CREATE INDEX idx_condiciones_compra_activo ON condiciones_compra(activo);
 
--- Índices para PEDIDOS
-CREATE INDEX idx_pedidos_socio_id ON pedidos(fk_id_socio);
-CREATE INDEX idx_pedidos_proveedor_id ON pedidos(fk_id_proveedor);
-CREATE INDEX idx_pedidos_fecha ON pedidos(fecha);
-CREATE INDEX idx_pedidos_estado ON pedidos(estado);
 
--- Índices para ITEMS_PEDIDO
-CREATE INDEX idx_items_pedido_pedido_id ON items_pedido(fk_id_pedido);
-CREATE INDEX idx_items_pedido_producto_id ON items_pedido(fk_id_producto);
 
 -- Índices para CONFIGURACION_SISTEMA
 CREATE INDEX idx_configuracion_sistema_clave ON configuracion_sistema(clave);
@@ -340,10 +324,15 @@ CREATE INDEX idx_facturas_fecha ON facturas(fecha);
 CREATE INDEX idx_facturas_estado ON facturas(estado);
 CREATE INDEX idx_facturas_fecha_vencimiento ON facturas(fecha_vencimiento);
 
+-- Índices para CUENTAS_TESORERIA
+CREATE INDEX idx_cuentas_tesoreria_tipo ON cuentas_tesoreria(tipo);
+CREATE INDEX idx_cuentas_tesoreria_activa ON cuentas_tesoreria(activa);
+
 -- Índices para PAGOS
 CREATE INDEX idx_pagos_socio_id ON pagos(fk_id_socio);
 CREATE INDEX idx_pagos_fecha ON pagos(fecha);
-CREATE INDEX idx_pagos_factura_id ON pagos(fk_id_factura);
+CREATE INDEX idx_pagos_movimiento_id ON pagos(fk_id_movimiento);
+CREATE INDEX idx_pagos_cuenta_tesoreria ON pagos(fk_id_cuenta_tesoreria);
 
 -- =====================================================
 -- FUNCIONES Y TRIGGERS
@@ -369,14 +358,13 @@ $$ language 'plpgsql';
 
 -- Triggers para updated_at
 CREATE TRIGGER update_usuarios_updated_at BEFORE UPDATE ON usuarios FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_tipo_comercios_updated_at BEFORE UPDATE ON tipo_comercios FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_rubros_updated_at BEFORE UPDATE ON rubros FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_socios_updated_at BEFORE UPDATE ON socios FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_cargos_updated_at BEFORE UPDATE ON cargos FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_movimientos_socios_updated_at BEFORE UPDATE ON movimientos_socios FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_proveedores_updated_at BEFORE UPDATE ON proveedores FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_listas_precios_updated_at BEFORE UPDATE ON listas_precios FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_productos_updated_at BEFORE UPDATE ON productos FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_condiciones_compra_updated_at BEFORE UPDATE ON condiciones_compra FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_pedidos_updated_at BEFORE UPDATE ON pedidos FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_configuracion_sistema_updated_at BEFORE UPDATE ON configuracion_sistema FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_facturas_updated_at BEFORE UPDATE ON facturas FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -392,11 +380,21 @@ INSERT INTO modulos (nombre, descripcion, icono, ruta, orden, activo) VALUES
 ('DASHBOARD', 'Panel principal del sistema', 'Home', '/', 1, true),
 ('SOCIOS', 'Gestión de socios de la agrupación', 'Users', '/members', 2, true),
 ('FACTURACION', 'Facturación y cobranzas a socios', 'Receipt', '/billing', 3, true),
-('PROVEEDORES', 'Gestión de proveedores y productos', 'Truck', '/providers', 4, true),
-('PEDIDOS', 'Gestión de pedidos a proveedores', 'ShoppingCart', '/orders', 5, true),
-('CONTABILIDAD', 'Cuentas corrientes y pagos', 'Calculator', '/accounting', 6, true),
-('ADMINISTRACION', 'Configuración del sistema', 'Settings', '/admin', 7, true),
-('SEGURIDAD', 'Gestión de permisos y usuarios', 'Shield', '/security', 8, true);
+('CONTABILIDAD', 'Cuentas corrientes y pagos', 'Calculator', '/accounting', 4, true),
+('TESORERIA', 'Gestión de movimientos bancarios y efectivo', 'TrendingUp', '/movements', 5, true),
+('ADMINISTRACION', 'Configuración del sistema', 'Settings', '/admin', 6, true),
+('SEGURIDAD', 'Gestión de permisos y usuarios', 'Shield', '/security', 7, true);
+
+-- Insertar cuentas de tesorería predeterminadas
+INSERT INTO cuentas_tesoreria (nombre, tipo, descripcion, numero_cuenta, banco) VALUES
+('Efectivo', 'Efectivo', 'Pagos en efectivo', NULL, NULL),
+('Transferencia Bancaria', 'Transferencia', 'Transferencias electrónicas', NULL, NULL),
+('Tarjeta de Débito', 'Tarjeta', 'Pagos con tarjeta de débito', NULL, NULL),
+('Tarjeta de Crédito', 'Tarjeta', 'Pagos con tarjeta de crédito', NULL, NULL),
+('Cheque', 'Cheque', 'Pagos con cheque', NULL, NULL),
+('Mercado Pago', 'Digital', 'Pagos digitales a través de Mercado Pago', NULL, NULL),
+('Banco Santander - CC', 'Banco', 'Cuenta corriente Banco Santander', '123456789', 'Banco Santander'),
+('Banco Nación - CA', 'Banco', 'Caja de ahorro Banco Nación', '987654321', 'Banco Nación');
 
 -- Insertar configuraciones del sistema
 INSERT INTO configuracion_sistema (clave, valor, descripcion, tipo) VALUES
@@ -413,6 +411,32 @@ INSERT INTO configuracion_sistema (clave, valor, descripcion, tipo) VALUES
 ('tax_rate', '21', 'Tasa de IVA', 'Number'),
 ('clerk_publishable_key', '', 'Clave pública de Clerk', 'String'),
 ('clerk_secret_key', '', 'Clave secreta de Clerk', 'String');
+
+-- Insertar datos iniciales para tipo_comercios
+INSERT INTO tipo_comercios (nombre, descripcion) VALUES
+('Comercio Minorista', 'Venta al por menor'),
+('Comercio Mayorista', 'Venta al por mayor'),
+('Servicios', 'Prestación de servicios'),
+('Industria', 'Actividad industrial'),
+('Agropecuario', 'Actividad agropecuaria'),
+('Construcción', 'Actividad de la construcción'),
+('Transporte', 'Servicios de transporte'),
+('Gastronomía', 'Servicios gastronómicos'),
+('Turismo', 'Servicios turísticos'),
+('Otros', 'Otros tipos de comercio');
+
+-- Insertar datos iniciales para rubros
+INSERT INTO rubros (nombre, descripcion) VALUES
+('Alimentación', 'Venta de alimentos y bebidas'),
+('Textil', 'Confección y venta de ropa'),
+('Ferretería', 'Venta de herramientas y materiales'),
+('Farmacia', 'Productos farmacéuticos y sanitarios'),
+('Autopartes', 'Repuestos y accesorios para vehículos'),
+('Electrónica', 'Equipos electrónicos y tecnología'),
+('Construcción', 'Materiales de construcción'),
+('Servicios Profesionales', 'Servicios profesionales diversos'),
+('Turismo y Hotelería', 'Servicios turísticos y hoteleros'),
+('Otros', 'Otros rubros no especificados');
 
 -- Insertar cargos por defecto
 INSERT INTO cargos (nombre, tipo, monto, descripcion, frecuencia, activo) VALUES
@@ -439,16 +463,13 @@ INSERT INTO usuarios (nombre, email, rol, clerk_user_id, status) VALUES
 ALTER TABLE modulos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE permisos_usuarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tipo_comercios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rubros ENABLE ROW LEVEL SECURITY;
 ALTER TABLE socios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cargos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE movimientos_socios ENABLE ROW LEVEL SECURITY;
-ALTER TABLE proveedores ENABLE ROW LEVEL SECURITY;
-ALTER TABLE listas_precios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE productos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE items_lista_precios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE condiciones_compra ENABLE ROW LEVEL SECURITY;
-ALTER TABLE pedidos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE items_pedido ENABLE ROW LEVEL SECURITY;
 ALTER TABLE configuracion_sistema ENABLE ROW LEVEL SECURITY;
 ALTER TABLE facturas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pagos ENABLE ROW LEVEL SECURITY;
@@ -475,16 +496,13 @@ CREATE POLICY "Admins pueden gestionar permisos" ON permisos_usuarios FOR ALL US
 );
 
 -- Políticas básicas para el resto de tablas (ajustar según necesidades)
+CREATE POLICY "Administradores pueden ver todo" ON tipo_comercios FOR ALL USING (true);
+CREATE POLICY "Administradores pueden ver todo" ON rubros FOR ALL USING (true);
 CREATE POLICY "Administradores pueden ver todo" ON socios FOR ALL USING (true);
 CREATE POLICY "Administradores pueden ver todo" ON cargos FOR ALL USING (true);
 CREATE POLICY "Administradores pueden ver todo" ON movimientos_socios FOR ALL USING (true);
-CREATE POLICY "Administradores pueden ver todo" ON proveedores FOR ALL USING (true);
-CREATE POLICY "Administradores pueden ver todo" ON listas_precios FOR ALL USING (true);
 CREATE POLICY "Administradores pueden ver todo" ON productos FOR ALL USING (true);
-CREATE POLICY "Administradores pueden ver todo" ON items_lista_precios FOR ALL USING (true);
 CREATE POLICY "Administradores pueden ver todo" ON condiciones_compra FOR ALL USING (true);
-CREATE POLICY "Administradores pueden ver todo" ON pedidos FOR ALL USING (true);
-CREATE POLICY "Administradores pueden ver todo" ON items_pedido FOR ALL USING (true);
 CREATE POLICY "Administradores pueden ver todo" ON configuracion_sistema FOR ALL USING (true);
 CREATE POLICY "Administradores pueden ver todo" ON facturas FOR ALL USING (true);
 CREATE POLICY "Administradores pueden ver todo" ON pagos FOR ALL USING (true);
@@ -581,19 +599,16 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 COMMENT ON TABLE modulos IS 'Módulos del sistema con permisos';
 COMMENT ON TABLE usuarios IS 'Usuarios del sistema vinculados con Clerk';
 COMMENT ON TABLE permisos_usuarios IS 'Permisos de usuarios por módulo';
+COMMENT ON TABLE tipo_comercios IS 'Tipos de comercios disponibles para los socios';
+COMMENT ON TABLE rubros IS 'Rubros de actividad de los socios';
 COMMENT ON TABLE socios IS 'Tabla maestra de socios de la agrupación';
 COMMENT ON TABLE cargos IS 'Tipos de cargos aplicables a los socios';
 COMMENT ON TABLE movimientos_socios IS 'Movimientos financieros de los socios';
-COMMENT ON TABLE proveedores IS 'Catálogo de proveedores';
-COMMENT ON TABLE listas_precios IS 'Listas de precios por proveedor';
 COMMENT ON TABLE productos IS 'Catálogo de productos';
-COMMENT ON TABLE items_lista_precios IS 'Items de precios en las listas';
 COMMENT ON TABLE condiciones_compra IS 'Condiciones comerciales de compra';
-COMMENT ON TABLE pedidos IS 'Pedidos de socios a proveedores';
-COMMENT ON TABLE items_pedido IS 'Items de los pedidos';
 COMMENT ON TABLE configuracion_sistema IS 'Configuración general del sistema';
 COMMENT ON TABLE facturas IS 'Facturas emitidas a socios';
-COMMENT ON TABLE pagos IS 'Pagos registrados por socios';
+COMMENT ON TABLE pagos IS 'Pagos registrados por socios vinculados a movimientos específicos';
 
 -- =====================================================
 -- FIN DEL SCRIPT

@@ -3,21 +3,14 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Users, Truck, ShoppingCart, DollarSign, TrendingUp, AlertCircle, Plus } from "lucide-react"
+import { Users, Truck, ShoppingCart, DollarSign, TrendingUp, AlertCircle } from "lucide-react"
 import { 
   Socio, 
-  Proveedor, 
-  Pedido,
-  getSocios,
-  getProveedores,
-  getPedidos
+  getSocios
 } from "@/lib/supabase-admin"
 
 export function Dashboard() {
   const [socios, setSocios] = useState<Socio[]>([])
-  const [proveedores, setProveedores] = useState<Proveedor[]>([])
-  const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [loading, setLoading] = useState(true)
 
   // Cargar datos desde Supabase
@@ -25,14 +18,8 @@ export function Dashboard() {
     async function cargarDatos() {
       try {
         setLoading(true)
-        const [sociosData, proveedoresData, pedidosData] = await Promise.all([
-          getSocios(),
-          getProveedores(),
-          getPedidos()
-        ])
+        const sociosData = await getSocios()
         setSocios(sociosData)
-        setProveedores(proveedoresData)
-        setPedidos(pedidosData)
       } catch (err) {
         console.error('Error cargando datos del dashboard:', err)
       } finally {
@@ -61,53 +48,13 @@ export function Dashboard() {
       ? ((sociosActivos - sociosMesAnterior) / sociosMesAnterior) * 100 
       : 0
 
-    // Proveedores
-    const totalProveedores = proveedores.length
-    const proveedoresMesAnterior = proveedores.filter(prov => {
-      const fechaProv = new Date(prov.created_at)
-      const mesAnterior = mesActual === 0 ? 11 : mesActual - 1
-      const añoAnterior = mesActual === 0 ? añoActual - 1 : añoActual
-      return fechaProv.getMonth() === mesAnterior && fechaProv.getFullYear() === añoAnterior
-    }).length
-    const variacionProveedores = proveedoresMesAnterior > 0 
-      ? ((totalProveedores - proveedoresMesAnterior) / proveedoresMesAnterior) * 100 
-      : 0
-
-    // Pedidos pendientes
-    const pedidosPendientes = pedidos.filter(pedido => pedido.estado === 'Pendiente').length
-    const pedidosPendientesMesAnterior = pedidos.filter(pedido => {
-      const fechaPedido = new Date(pedido.fecha)
-      const mesAnterior = mesActual === 0 ? 11 : mesActual - 1
-      const añoAnterior = mesActual === 0 ? añoActual - 1 : añoActual
-      return pedido.estado === 'Pendiente' && 
-             fechaPedido.getMonth() === mesAnterior && 
-             fechaPedido.getFullYear() === añoAnterior
-    }).length
-    const variacionPedidos = pedidosPendientesMesAnterior > 0 
-      ? ((pedidosPendientes - pedidosPendientesMesAnterior) / pedidosPendientesMesAnterior) * 100 
-      : 0
-
-    // Saldo total
-    const saldoTotal = pedidos.reduce((sum, pedido) => sum + pedido.total, 0)
-    const saldoMesAnterior = pedidos.filter(pedido => {
-      const fechaPedido = new Date(pedido.fecha)
-      const mesAnterior = mesActual === 0 ? 11 : mesActual - 1
-      const añoAnterior = mesActual === 0 ? añoActual - 1 : añoActual
-      return fechaPedido.getMonth() === mesAnterior && fechaPedido.getFullYear() === añoAnterior
-    }).reduce((sum, pedido) => sum + pedido.total, 0)
-    const variacionSaldo = saldoMesAnterior > 0 
-      ? ((saldoTotal - saldoMesAnterior) / saldoMesAnterior) * 100 
-      : 0
+    // Estadísticas básicas de socios
+    const totalSocios = socios.length
 
     return {
       sociosActivos,
       variacionSocios,
-      totalProveedores,
-      variacionProveedores,
-      pedidosPendientes,
-      variacionPedidos,
-      saldoTotal,
-      variacionSaldo
+      totalSocios
     }
   }
 
@@ -122,48 +69,29 @@ export function Dashboard() {
       color: "text-blue-600",
     },
     {
-      title: "Proveedores",
-      value: loading ? "..." : statsData.totalProveedores.toString(),
-      change: loading ? "..." : `${statsData.variacionProveedores > 0 ? '+' : ''}${statsData.variacionProveedores.toFixed(0)}%`,
-      icon: Truck,
+      title: "Total Socios",
+      value: loading ? "..." : statsData.totalSocios.toString(),
+      change: loading ? "..." : "0%",
+      icon: Users,
       color: "text-green-600",
-    },
-    {
-      title: "Pedidos Pendientes",
-      value: loading ? "..." : statsData.pedidosPendientes.toString(),
-      change: loading ? "..." : `${statsData.variacionPedidos > 0 ? '+' : ''}${statsData.variacionPedidos.toFixed(0)}%`,
-      icon: ShoppingCart,
-      color: "text-orange-600",
-    },
-    {
-      title: "Saldo Total",
-      value: loading ? "..." : `$${statsData.saldoTotal.toLocaleString()}`,
-      change: loading ? "..." : `${statsData.variacionSaldo > 0 ? '+' : ''}${statsData.variacionSaldo.toFixed(0)}%`,
-      icon: DollarSign,
-      color: "text-emerald-600",
     },
   ]
 
-  // Obtener pedidos recientes (últimos 4)
-  const recentOrders = loading ? [] : pedidos
+  // Obtener socios recientes (últimos 4)
+  const recentSocios = loading ? [] : socios
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 4)
-    .map(pedido => {
-      const socio = socios.find(s => s.id === pedido.fk_id_socio)
-      const proveedor = proveedores.find(p => p.id === pedido.fk_id_proveedor)
-      return {
-        id: pedido.id,
-        member: socio?.razon_social || 'Socio no encontrado',
-        provider: proveedor?.nombre || 'Proveedor no encontrado',
-        amount: `$${pedido.total.toLocaleString()}`,
-        status: pedido.estado
-      }
-    })
+    .map(socio => ({
+      id: socio.id,
+      member: socio.razon_social,
+      email: socio.email,
+      status: socio.status
+    }))
 
   const alerts = [
-    { type: "warning", message: "5 socios con saldos vencidos" },
-    { type: "info", message: "Nueva lista de precios de Audio Pro disponible" },
-    { type: "error", message: "Falla en importación de Excel - Revisar formato" },
+    { type: "warning", message: "5 socios con cuotas vencidas" },
+    { type: "info", message: "Nuevos productos agregados al catálogo" },
+    { type: "error", message: "Error en sincronización de datos - Revisar conexión" },
   ]
 
   return (
@@ -174,10 +102,6 @@ export function Dashboard() {
           <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
           <p className="text-muted-foreground">Resumen general del sistema de gestión</p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Nuevo Pedido
-        </Button>
       </div>
 
       {/* Stats Cards */}
@@ -203,45 +127,42 @@ export function Dashboard() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Recent Orders */}
+        {/* Recent Members */}
         <Card>
           <CardHeader>
-            <CardTitle>Pedidos Recientes</CardTitle>
-            <CardDescription>Últimos pedidos realizados por los socios</CardDescription>
+            <CardTitle>Socios Recientes</CardTitle>
+            <CardDescription>Últimos socios registrados en el sistema</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {loading ? (
                 <div className="text-center py-4 text-muted-foreground">
-                  Cargando pedidos recientes...
+                  Cargando socios recientes...
                 </div>
-              ) : recentOrders.length > 0 ? (
-                recentOrders.map((order) => (
-                  <div key={order.id} className="flex items-center justify-between">
+              ) : recentSocios.length > 0 ? (
+                recentSocios.map((socio) => (
+                  <div key={socio.id} className="flex items-center justify-between">
                     <div className="space-y-1">
-                      <p className="text-sm font-medium">{order.member}</p>
-                      <p className="text-xs text-muted-foreground">{order.provider}</p>
+                      <p className="text-sm font-medium">{socio.member}</p>
+                      <p className="text-xs text-muted-foreground">{socio.email}</p>
                     </div>
                     <div className="text-right space-y-1">
-                      <p className="text-sm font-medium">{order.amount}</p>
                       <Badge
                         variant={
-                          order.status === "Entregado"
+                          socio.status === "Activo"
                             ? "default"
-                            : order.status === "Procesado"
-                              ? "secondary"
-                              : "outline"
+                            : "outline"
                         }
                         className="text-xs"
                       >
-                        {order.status}
+                        {socio.status}
                       </Badge>
                     </div>
                   </div>
                 ))
               ) : (
                 <div className="text-center py-4 text-muted-foreground">
-                  No hay pedidos recientes
+                  No hay socios recientes
                 </div>
               )}
             </div>
