@@ -102,25 +102,25 @@ export function Sidebar({ activeModule, setActiveModule, isOpen, setIsOpen }: Si
               id: 'billing-charges',
               label: 'Cargos Definidos',
               icon: DollarSign,
-              href: '/modules/billing/charges'
+              href: '/billing/charges'
             },
             {
               id: 'billing-movements',
               label: 'Gestion de cuotas',
               icon: TrendingUp,
-              href: '/modules/billing/movements'
+              href: '/billing/movements'
             },
             {
               id: 'billing-accounts',
               label: 'Estado de Socios',
               icon: Users,
-              href: '/modules/billing/accounts'
+              href: '/billing/accounts'
             },
             {
               id: 'billing-reports',
               label: 'Resumen global',
               icon: Calculator,
-              href: '/modules/billing/reports'
+              href: '/billing/reports'
             }
           ]
         }
@@ -135,19 +135,19 @@ export function Sidebar({ activeModule, setActiveModule, isOpen, setIsOpen }: Si
               id: 'members-list',
               label: 'Gestión de Socios',
               icon: Users,
-              href: '/modules/members/list'
+              href: '/members/list'
             },
             {
               id: 'members-types',
               label: 'Tipos de Comercio',
               icon: Building,
-              href: '/modules/members/types'
+              href: '/members/types'
             },
             {
               id: 'members-categories',
               label: 'Rubros',
               icon: Tag,
-              href: '/modules/members/categories'
+              href: '/members/categories'
             }
           ]
         }
@@ -181,7 +181,7 @@ export function Sidebar({ activeModule, setActiveModule, isOpen, setIsOpen }: Si
             <div className="relative h-8 w-8 flex-shrink-0">
               <Image
                 src="/images/logo-cooperativa.png"
-                alt="Cooperativa Mar & Sierras"
+                alt="Cooperativa"
                 fill
                 className="object-contain"
               />
