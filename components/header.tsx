@@ -16,7 +16,7 @@ export function Header({ sidebarOpen, setSidebarOpen }: HeaderProps) {
   return (
     <header className="bg-background border-b border-border px-6 py-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center">
           <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden">
             <Menu className="h-4 w-4" />
           </Button>
@@ -32,7 +32,7 @@ export function Header({ sidebarOpen, setSidebarOpen }: HeaderProps) {
           </Button>
 
           {/* User Button de Clerk */}
-          <UserButton 
+          <UserButton
             appearance={{
               elements: {
                 avatarBox: "h-8 w-8",
