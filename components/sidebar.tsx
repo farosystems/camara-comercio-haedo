@@ -102,25 +102,25 @@ export function Sidebar({ activeModule, setActiveModule, isOpen, setIsOpen }: Si
               id: 'billing-charges',
               label: 'Cargos Definidos',
               icon: DollarSign,
-              href: '/billing/charges'
+              href: '/modules/billing/charges'
             },
             {
               id: 'billing-movements',
               label: 'Gestion de cuotas',
               icon: TrendingUp,
-              href: '/billing/movements'
+              href: '/modules/billing/movements'
             },
             {
               id: 'billing-accounts',
               label: 'Estado de Socios',
               icon: Users,
-              href: '/billing/accounts'
+              href: '/modules/billing/accounts'
             },
             {
               id: 'billing-reports',
               label: 'Resumen global',
               icon: Calculator,
-              href: '/billing/reports'
+              href: '/modules/billing/reports'
             }
           ]
         }
@@ -135,19 +135,19 @@ export function Sidebar({ activeModule, setActiveModule, isOpen, setIsOpen }: Si
               id: 'members-list',
               label: 'Gestión de Socios',
               icon: Users,
-              href: '/members/list'
+              href: '/modules/members/list'
             },
             {
               id: 'members-types',
               label: 'Tipos de Comercio',
               icon: Building,
-              href: '/members/types'
+              href: '/modules/members/types'
             },
             {
               id: 'members-categories',
               label: 'Rubros',
               icon: Tag,
-              href: '/members/categories'
+              href: '/modules/members/categories'
             }
           ]
         }

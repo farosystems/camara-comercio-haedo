@@ -17,18 +17,16 @@ export default function ModulesLayout({
 
   // Detectar automáticamente el módulo activo basado en la ruta
   useEffect(() => {
-    const moduleMap: { [key: string]: string } = {
-      "/dashboard": "dashboard",
-      "/members": "members",
-      "/billing": "billing",
-      "/movements": "movements",
-      "/accounting": "accounting",
-      "/admin": "admin",
-      "/security": "security",
+    // Extraer el módulo base de la ruta (ej: /modules/members/list -> members)
+    const pathParts = pathname.split('/').filter(Boolean)
+
+    if (pathParts.length >= 2 && pathParts[0] === 'modules') {
+      setActiveModule(pathParts[1])
+    } else if (pathParts.length >= 1) {
+      setActiveModule(pathParts[0])
+    } else {
+      setActiveModule("dashboard")
     }
-    
-    const currentModule = moduleMap[pathname] || "dashboard"
-    setActiveModule(currentModule)
   }, [pathname])
 
   return (
