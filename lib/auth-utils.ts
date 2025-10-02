@@ -19,9 +19,9 @@ interface Permiso {
 
 export async function getCurrentUser() {
   try {
-    const { userId } = auth();
+    const { userId } = await auth();
     console.log('Clerk userId:', userId);
-    
+
     if (!userId) {
       throw new Error('No autorizado');
     }
