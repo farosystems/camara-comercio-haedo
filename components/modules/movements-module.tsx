@@ -154,6 +154,11 @@ export function MovementsModule() {
     fecha_hasta: getArgentinaDateString()
   })
 
+  // Estados para filtros de movimientos
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState("")
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState("")
+  const [filtroCuenta, setFiltroCuenta] = useState<number>(0)
+
   const resetCuentaForm = () => {
     setCuentaForm({
       nombre: "",
@@ -377,6 +382,18 @@ export function MovementsModule() {
 
         if (!response.ok) {
           console.error('Error de API en transferencia:', result)
+
+          // Mostrar mensaje específico si no hay caja abierta
+          if (result.error && result.error.includes('abrir una caja')) {
+            toast({
+              title: "Caja no abierta",
+              description: result.error,
+              variant: "destructive",
+            })
+            setLoading(false)
+            return
+          }
+
           throw new Error(result.error || 'Error procesando la transferencia')
         }
 
@@ -398,6 +415,18 @@ export function MovementsModule() {
 
         if (!response.ok) {
           console.error('Error de API:', result)
+
+          // Mostrar mensaje específico si no hay caja abierta
+          if (result.error && result.error.includes('abrir una caja')) {
+            toast({
+              title: "Caja no abierta",
+              description: result.error,
+              variant: "destructive",
+            })
+            setLoading(false)
+            return
+          }
+
           throw new Error(result.error || 'Error creando el movimiento')
         }
 
@@ -548,23 +577,7 @@ export function MovementsModule() {
                fechaMovimiento <= fechaHasta
       }).sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
 
-      // Obtener detalles de lotes relacionados con esta cuenta
-      const response = await fetch('/api/detalle-lotes?todos=true')
-      let detallesLotes: any[] = []
-      if (response.ok) {
-        const data = await response.json()
-        detallesLotes = (data.detalles || []).filter((d: any) => {
-          const fechaMovimiento = new Date(d.fecha_movimiento)
-          const fechaDesde = new Date(reportForm.fecha_desde)
-          const fechaHasta = new Date(reportForm.fecha_hasta)
-
-          return d.fk_id_cuenta_tesoreria === reportForm.cuenta_id &&
-                 fechaMovimiento >= fechaDesde &&
-                 fechaMovimiento <= fechaHasta
-        })
-      }
-
-      // Calcular totales
+      // Calcular totales solo de Tesorería
       const totalIngresos = movimientosFiltrados
         .filter(m => m.tipo === 'Ingreso')
         .reduce((sum, m) => sum + parseFloat(m.ingresos?.toString() || '0'), 0)
@@ -572,14 +585,6 @@ export function MovementsModule() {
       const totalEgresos = movimientosFiltrados
         .filter(m => m.tipo === 'Egreso')
         .reduce((sum, m) => sum + parseFloat(m.ingresos?.toString() || '0'), 0)
-
-      const totalIngresosLotes = detallesLotes
-        .filter((d: any) => d.tipo === 'ingreso')
-        .reduce((sum: number, d: any) => sum + parseFloat(d.monto?.toString() || '0'), 0)
-
-      const totalEgresosLotes = detallesLotes
-        .filter((d: any) => d.tipo === 'egreso')
-        .reduce((sum: number, d: any) => sum + parseFloat(d.monto?.toString() || '0'), 0)
 
       // Generar PDF
       const { jsPDF } = await import('jspdf')
@@ -650,12 +655,7 @@ export function MovementsModule() {
 
       yPos += 15
 
-      // Calcular totales consolidados
-      const totalIngresosConsolidado = totalIngresos + totalIngresosLotes
-      const totalEgresosConsolidado = totalEgresos + totalEgresosLotes
-      const saldoFinalConsolidado = totalIngresosConsolidado - totalEgresosConsolidado
-
-      // Resumen Financiero Consolidado
+      // Resumen Financiero
       doc.setFillColor(236, 240, 241)
       doc.rect(15, yPos, 180, 8, 'F')
       doc.setFontSize(12)
@@ -665,66 +665,33 @@ export function MovementsModule() {
       yPos += 15
       doc.setFontSize(10)
 
-      // Tabla de resumen
+      // Mostrar totales
       doc.setFont('helvetica', 'bold')
-      doc.text('Origen', 20, yPos)
-      doc.text('Ingresos', 80, yPos)
-      doc.text('Egresos', 120, yPos)
-      doc.text('Saldo', 165, yPos)
-
-      yPos += 3
-      doc.setLineWidth(0.1)
-      doc.line(15, yPos, 195, yPos)
-      yPos += 5
-
-      // Tesorería
+      doc.text('Ingresos:', 20, yPos)
       doc.setFont('helvetica', 'normal')
-      doc.setTextColor(52, 73, 94)
-      doc.text('Tesorería', 20, yPos)
       doc.setTextColor(39, 174, 96)
       doc.text(`$${totalIngresos.toLocaleString()}`, 80, yPos)
-      doc.setTextColor(231, 76, 60)
-      doc.text(`$${totalEgresos.toLocaleString()}`, 120, yPos)
-      const saldoTesoreria = totalIngresos - totalEgresos
-      doc.setTextColor(saldoTesoreria >= 0 ? 39 : 231, saldoTesoreria >= 0 ? 174 : 76, saldoTesoreria >= 0 ? 96 : 60)
-      doc.text(`$${saldoTesoreria.toLocaleString()}`, 165, yPos)
 
-      yPos += 5
-
-      // Cajas
+      yPos += 6
       doc.setTextColor(52, 73, 94)
-      doc.text('Cajas', 20, yPos)
-      doc.setTextColor(39, 174, 96)
-      doc.text(`$${totalIngresosLotes.toLocaleString()}`, 80, yPos)
-      doc.setTextColor(231, 76, 60)
-      doc.text(`$${totalEgresosLotes.toLocaleString()}`, 120, yPos)
-      const saldoCajas = totalIngresosLotes - totalEgresosLotes
-      doc.setTextColor(saldoCajas >= 0 ? 39 : 231, saldoCajas >= 0 ? 174 : 76, saldoCajas >= 0 ? 96 : 60)
-      doc.text(`$${saldoCajas.toLocaleString()}`, 165, yPos)
-
-      yPos += 5
-
-      // Línea separadora para totales
-      doc.setLineWidth(0.3)
-      doc.setDrawColor(52, 73, 94)
-      doc.line(15, yPos, 195, yPos)
-      yPos += 5
-
-      // Totales
       doc.setFont('helvetica', 'bold')
-      doc.setFontSize(11)
-      doc.setTextColor(52, 73, 94)
-      doc.text('TOTAL', 20, yPos)
-      doc.setTextColor(39, 174, 96)
-      doc.text(`$${totalIngresosConsolidado.toLocaleString()}`, 80, yPos)
+      doc.text('Egresos:', 20, yPos)
+      doc.setFont('helvetica', 'normal')
       doc.setTextColor(231, 76, 60)
-      doc.text(`$${totalEgresosConsolidado.toLocaleString()}`, 120, yPos)
-      doc.setTextColor(saldoFinalConsolidado >= 0 ? 39 : 231, saldoFinalConsolidado >= 0 ? 174 : 76, saldoFinalConsolidado >= 0 ? 96 : 60)
-      doc.text(`$${saldoFinalConsolidado.toLocaleString()}`, 165, yPos)
+      doc.text(`$${totalEgresos.toLocaleString()}`, 80, yPos)
+
+      yPos += 6
+      const saldoFinal = totalIngresos - totalEgresos
+      doc.setTextColor(52, 73, 94)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Saldo:', 20, yPos)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(saldoFinal >= 0 ? 39 : 231, saldoFinal >= 0 ? 174 : 76, saldoFinal >= 0 ? 96 : 60)
+      doc.text(`$${saldoFinal.toLocaleString()}`, 80, yPos)
 
       yPos += 15
 
-      // Unificar y ordenar todos los movimientos
+      // Preparar movimientos para mostrar solo de Tesorería
       const todosLosMovimientos: any[] = []
 
       // Agregar movimientos de tesorería
@@ -732,24 +699,10 @@ export function MovementsModule() {
         todosLosMovimientos.push({
           fecha: new Date(mov.fecha),
           fechaDisplay: formatDateForDisplay(mov.fecha),
-          origen: 'Tesorería',
           concepto: mov.concepto_ingreso,
           detalle: mov.proveedor?.razon_social || mov.apellido_nombres || '-',
           tipo: mov.tipo,
           monto: parseFloat(mov.ingresos?.toString() || '0')
-        })
-      })
-
-      // Agregar movimientos de cajas
-      detallesLotes.forEach((det: any) => {
-        todosLosMovimientos.push({
-          fecha: new Date(det.fecha_movimiento),
-          fechaDisplay: formatDateForDisplay(det.fecha_movimiento),
-          origen: 'Caja',
-          concepto: det.concepto || 'N/A',
-          detalle: det.observaciones || '-',
-          tipo: det.tipo === 'ingreso' ? 'Ingreso' : 'Egreso',
-          monto: parseFloat(det.monto || 0)
         })
       })
 
@@ -770,8 +723,7 @@ export function MovementsModule() {
         // Headers
         doc.setFontSize(8)
         doc.text('Fecha', 20, yPos)
-        doc.text('Origen', 40, yPos)
-        doc.text('Concepto', 60, yPos)
+        doc.text('Concepto', 50, yPos)
         doc.text('Detalle', 105, yPos)
         doc.text('Tipo', 145, yPos)
         doc.text('Monto', 170, yPos)
@@ -792,15 +744,8 @@ export function MovementsModule() {
           doc.setTextColor(52, 73, 94)
           doc.text(mov.fechaDisplay, 20, yPos)
 
-          // Origen con color distintivo
-          doc.setFontSize(7)
-          doc.setTextColor(100, 100, 100)
-          doc.text(mov.origen, 40, yPos)
-          doc.setFontSize(8)
-          doc.setTextColor(52, 73, 94)
-
-          const concepto = mov.concepto.length > 20 ? mov.concepto.substring(0, 20) + '...' : mov.concepto
-          doc.text(concepto, 60, yPos)
+          const concepto = mov.concepto.length > 25 ? mov.concepto.substring(0, 25) + '...' : mov.concepto
+          doc.text(concepto, 50, yPos)
 
           const detalle = mov.detalle.length > 20 ? mov.detalle.substring(0, 20) + '...' : mov.detalle
           doc.text(detalle, 105, yPos)
@@ -855,7 +800,7 @@ export function MovementsModule() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Movimientos</h2>
+          <h2 className="text-3xl font-bold tracking-tight">Tesoreria</h2>
           <p className="text-muted-foreground">Gestión de movimientos bancarios y efectivo</p>
         </div>
       </div>
@@ -1108,6 +1053,71 @@ export function MovementsModule() {
               <CardDescription>Registro de todos los movimientos bancarios y de efectivo</CardDescription>
             </CardHeader>
             <CardContent>
+              {/* Filtros */}
+              <div className="mb-4 grid gap-4 md:grid-cols-4">
+                <div className="space-y-2">
+                  <Label htmlFor="filtro_cuenta">Cuenta</Label>
+                  <Select value={filtroCuenta.toString()} onValueChange={(value) => setFiltroCuenta(parseInt(value))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todas las cuentas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">Todas las cuentas</SelectItem>
+                      {cuentas.map((cuenta) => (
+                        <SelectItem key={cuenta.id} value={cuenta.id.toString()}>
+                          {cuenta.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="filtro_fecha_desde">Fecha Desde</Label>
+                  <Input
+                    id="filtro_fecha_desde"
+                    type="date"
+                    value={filtroFechaDesde}
+                    onChange={(e) => setFiltroFechaDesde(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="filtro_fecha_hasta">Fecha Hasta</Label>
+                  <Input
+                    id="filtro_fecha_hasta"
+                    type="date"
+                    value={filtroFechaHasta}
+                    onChange={(e) => setFiltroFechaHasta(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2 flex items-end">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setFiltroCuenta(0)
+                      setFiltroFechaDesde("")
+                      setFiltroFechaHasta("")
+                    }}
+                    className="w-full"
+                  >
+                    Limpiar Filtros
+                  </Button>
+                </div>
+              </div>
+
+              {/* Contador de resultados */}
+              <div className="mb-4 text-sm text-muted-foreground">
+                Mostrando {movimientosCaja.filter((movimiento) => {
+                  if (filtroCuenta !== 0 && movimiento.fk_id_cuenta !== filtroCuenta) return false
+                  if (filtroFechaDesde && new Date(movimiento.fecha) < new Date(filtroFechaDesde)) return false
+                  if (filtroFechaHasta && new Date(movimiento.fecha) > new Date(filtroFechaHasta)) return false
+                  return true
+                }).length} de {movimientosCaja.length} movimientos
+              </div>
+            </CardContent>
+            <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1130,6 +1140,32 @@ export function MovementsModule() {
                     </TableRow>
                   ) : (
                     movimientosCaja
+                      .filter((movimiento) => {
+                        // Filtrar por cuenta
+                        if (filtroCuenta !== 0 && movimiento.fk_id_cuenta !== filtroCuenta) {
+                          return false
+                        }
+
+                        // Filtrar por fecha desde
+                        if (filtroFechaDesde) {
+                          const fechaMovimiento = new Date(movimiento.fecha)
+                          const fechaDesde = new Date(filtroFechaDesde)
+                          if (fechaMovimiento < fechaDesde) {
+                            return false
+                          }
+                        }
+
+                        // Filtrar por fecha hasta
+                        if (filtroFechaHasta) {
+                          const fechaMovimiento = new Date(movimiento.fecha)
+                          const fechaHasta = new Date(filtroFechaHasta)
+                          if (fechaMovimiento > fechaHasta) {
+                            return false
+                          }
+                        }
+
+                        return true
+                      })
                       .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
                       .map((movimiento) => (
                         <TableRow key={movimiento.id}>

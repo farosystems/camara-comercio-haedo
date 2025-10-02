@@ -52,6 +52,22 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    // Verificar que el usuario tenga una caja abierta
+    const { data: cajaAbierta, error: cajaError } = await supabase
+      .from('lotes_operaciones')
+      .select('id_lote')
+      .eq('fk_id_usuario', usuario.id)
+      .eq('abierto', true)
+      .single()
+
+    if (cajaError || !cajaAbierta) {
+      console.error('No hay caja abierta para el usuario:', usuario.id)
+      return NextResponse.json(
+        { error: 'Debe abrir una caja antes de registrar transferencias' },
+        { status: 400 }
+      )
+    }
+
     // Validar campos obligatorios
     if (!data.fk_id_cuenta || data.fk_id_cuenta === 0 || !data.concepto_ingreso || !data.fk_id_concepto || data.fk_id_concepto === 0 || !data.ingresos || data.ingresos <= 0 || !data.caja_destino_id) {
       console.log('Error de validación:', {

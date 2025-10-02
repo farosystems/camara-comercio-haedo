@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const supabase = createClient()
 
     const { data: cuentas, error } = await supabase
-      .from('cuentas')
+      .from('cuentas_tesoreria')
       .select('*')
       .order('nombre')
 

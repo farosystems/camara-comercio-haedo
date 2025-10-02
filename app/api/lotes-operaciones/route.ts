@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Error creando el lote' }, { status: 500 })
     }
 
-    // Si hay saldo inicial > 0, crear el registro en detalle_lotes_operaciones
+    // Si hay saldo inicial > 0, crear registros en detalle_lotes_operaciones y movimientos_caja
     if (parseFloat(data.saldo_inicial) > 0) {
       // Obtener una cuenta por defecto (la primera cuenta de efectivo, o la primera disponible)
       const { data: cuentaEfectivo } = await supabase
@@ -204,6 +204,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (cuentaId) {
+        // Crear registro en detalle_lotes_operaciones
         const { error: errorDetalle } = await supabase
           .from('detalle_lotes_operaciones')
           .insert([{
@@ -216,8 +217,32 @@ export async function POST(request: NextRequest) {
           }])
 
         if (errorDetalle) {
-          console.error('Error creando movimiento inicial:', errorDetalle)
+          console.error('Error creando movimiento inicial en detalle_lotes:', errorDetalle)
           // No fallar la operación si no se puede crear el detalle, pero log el error
+        }
+
+        // Crear registro en movimientos_caja
+        const fechaApertura = lote.fecha_apertura || new Date().toISOString()
+        const { error: errorMovimientoCaja } = await supabase
+          .from('movimientos_caja')
+          .insert([{
+            fk_id_cuenta: 1, // Cuenta de ID = 1
+            fecha: fechaApertura,
+            concepto_ingreso: 'Apertura de caja',
+            apellido_nombres: null,
+            fk_id_proveedor: null,
+            numero_comprobante: null,
+            nota: `Saldo inicial de caja - Lote ${lote.id_lote}`,
+            fk_id_concepto: 6, // Concepto de ID = 6
+            tipo: 'Ingreso',
+            ingresos: parseFloat(data.saldo_inicial),
+            observaciones: `Apertura de caja ${lote.caja?.nombre || ''} - Usuario: ${usuario.nombre}`,
+            fk_id_usuario: usuario.id
+          }])
+
+        if (errorMovimientoCaja) {
+          console.error('Error creando movimiento en movimientos_caja:', errorMovimientoCaja)
+          // No fallar la operación si no se puede crear el movimiento, pero log el error
         }
       }
     }

@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
         tipo,
         monto,
         fk_id_cuenta_tesoreria,
-        cuenta:cuentas_tesoreria!fk_id_cuenta_tesoreria(tipo)
+        cuenta:cuentas!fk_id_cuenta_tesoreria(tipo)
       `)
       .eq('fk_id_lote', id_lote)
 

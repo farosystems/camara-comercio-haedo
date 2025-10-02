@@ -391,7 +391,7 @@ export function CashBoxModule() {
 
       doc.setFontSize(12)
       doc.setFont('helvetica', 'normal')
-      doc.text('Reporte de Movimientos de Caja', 20, 30)
+      doc.text('Reporte de Movimientos de Tesorería', 20, 30)
 
       // Fecha de generación
       doc.setFontSize(10)

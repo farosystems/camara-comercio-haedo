@@ -10,12 +10,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Usuario no autenticado' }, { status: 401 })
     }
 
-    const { movementId, socioId, amount, cuentaId, reference } = await request.json()
+    const { movementId, socioId, amount, cuentaId, cuentaDestinoId, reference } = await request.json()
 
     // Validaciones
-    if (!movementId || !socioId || !amount || amount <= 0) {
+    if (!movementId || !socioId || !amount || amount <= 0 || !cuentaId || !cuentaDestinoId) {
       return NextResponse.json(
-        { error: 'Datos inválidos. Verifique movementId, socioId y amount' },
+        { error: 'Datos inválidos. Verifique movementId, socioId, amount, cuentaId y cuentaDestinoId' },
         { status: 400 }
       )
     }
@@ -32,6 +32,22 @@ export async function POST(request: NextRequest) {
     if (usuarioError || !usuario) {
       console.error('Error obteniendo usuario:', usuarioError)
       return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 400 })
+    }
+
+    // 2. Verificar que el usuario tenga una caja abierta
+    const { data: cajaAbierta, error: cajaError } = await supabase
+      .from('lotes_operaciones')
+      .select('id_lote')
+      .eq('fk_id_usuario', usuario.id)
+      .eq('abierto', true)
+      .single()
+
+    if (cajaError || !cajaAbierta) {
+      console.error('No hay caja abierta para el usuario:', usuario.id)
+      return NextResponse.json(
+        { error: 'Debe abrir una caja antes de registrar pagos' },
+        { status: 400 }
+      )
     }
 
     // 2. Obtener el movimiento actual
@@ -121,9 +137,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 4. Generar registro en movimientos_caja
+    // 4. Generar registro en movimientos_caja (usando cuenta destino)
     const movimientoCajaData = {
-      fk_id_cuenta: cuentaId,
+      fk_id_cuenta: cuentaDestinoId, // Usar la cuenta destino seleccionada
       fecha: getArgentinaDateString(),
       concepto_ingreso: `Pago de cuota - ${movement.concepto}`,
       apellido_nombres: null, // Se puede obtener del socio si es necesario
@@ -149,7 +165,7 @@ export async function POST(request: NextRequest) {
       console.log('El pago se procesó correctamente, pero no se pudo registrar en movimientos de caja')
     }
 
-    // 5. Generar registro en detalle_lotes_operaciones si hay un lote abierto
+    // 5. Generar registro en detalle_lotes_operaciones si hay un lote abierto (usando cuenta destino)
     const { data: loteAbierto } = await supabase
       .from('lotes_operaciones')
       .select('id_lote')
@@ -162,7 +178,7 @@ export async function POST(request: NextRequest) {
         .from('detalle_lotes_operaciones')
         .insert([{
           fk_id_lote: loteAbierto.id_lote,
-          fk_id_cuenta_tesoreria: cuentaId,
+          fk_id_cuenta_tesoreria: cuentaDestinoId, // Usar la cuenta destino seleccionada
           tipo: 'ingreso',
           monto: amount,
           concepto: `Pago de cuota - ${movement.concepto}`,

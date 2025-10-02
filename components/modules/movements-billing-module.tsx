@@ -43,7 +43,8 @@ export function MovementsBillingModule() {
   const [members, setMembers] = useState<Socio[]>([])
   const [cargos, setCargos] = useState<Cargo[]>([])
   const [cuentasTesoreria, setCuentasTesoreria] = useState<CuentaTesoreria[]>([])
-  const [cuentas, setCuentas] = useState<any[]>([])
+  const [metodosPago, setMetodosPago] = useState<any[]>([])
+  const [cuentasDestino, setCuentasDestino] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -58,7 +59,8 @@ export function MovementsBillingModule() {
   const [selectedMovementForPayment, setSelectedMovementForPayment] = useState<MovimientoSocio | null>(null)
   const [paymentAmount, setPaymentAmount] = useState("")
   const [paymentReference, setPaymentReference] = useState("")
-  const [paymentCuenta, setPaymentCuenta] = useState("")
+  const [paymentMetodoPago, setPaymentMetodoPago] = useState("")
+  const [paymentCuentaDestino, setPaymentCuentaDestino] = useState("")
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
 
   // Estados para modal de detalles
@@ -112,15 +114,27 @@ export function MovementsBillingModule() {
     }
   }
 
-  const cargarCuentas = async () => {
+  const cargarMetodosPago = async () => {
     try {
       const response = await fetch('/api/cuentas')
       if (response.ok) {
         const data = await response.json()
-        setCuentas(data.cuentas || [])
+        setMetodosPago(data.cuentas || [])
       }
     } catch (error) {
-      console.error('Error cargando cuentas:', error)
+      console.error('Error cargando métodos de pago:', error)
+    }
+  }
+
+  const cargarCuentasDestino = async () => {
+    try {
+      const response = await fetch('/api/cuentas/list')
+      if (response.ok) {
+        const data = await response.json()
+        setCuentasDestino(data.cuentas || [])
+      }
+    } catch (error) {
+      console.error('Error cargando cuentas destino:', error)
     }
   }
 
@@ -136,7 +150,8 @@ export function MovementsBillingModule() {
         getSocios(),
         getCargos(),
         getCuentasTesoreria(),
-        cargarCuentas()
+        cargarMetodosPago(),
+        cargarCuentasDestino()
       ])
       setMovements(movementsData)
       setMembers(membersData)
@@ -300,7 +315,7 @@ export function MovementsBillingModule() {
   }
 
   const handleProcessPayment = async () => {
-    if (!selectedMovementForPayment || !paymentAmount || parseFloat(paymentAmount) <= 0 || !paymentCuenta) {
+    if (!selectedMovementForPayment || !paymentAmount || parseFloat(paymentAmount) <= 0 || !paymentMetodoPago || !paymentCuentaDestino) {
       toast({
         title: "Error",
         description: "Debe completar todos los campos obligatorios",
@@ -330,15 +345,28 @@ export function MovementsBillingModule() {
           movementId: selectedMovementForPayment.id,
           socioId: selectedMovementForPayment.fk_id_socio,
           amount: amountToPay,
-          cuentaId: paymentCuenta ? parseInt(paymentCuenta) : null,
+          cuentaId: parseInt(paymentMetodoPago),
+          cuentaDestinoId: parseInt(paymentCuentaDestino),
           reference: paymentReference || null
         })
       })
 
       if (!response.ok) {
-        const errorText = await response.text()
-        console.error('Error response:', errorText)
-        throw new Error(`Error al procesar el pago: ${response.status} - ${errorText}`)
+        const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }))
+        console.error('Error response:', errorData)
+
+        // Mostrar mensaje específico si no hay caja abierta
+        if (errorData.error && errorData.error.includes('abrir una caja')) {
+          toast({
+            title: "Caja no abierta",
+            description: errorData.error,
+            variant: "destructive",
+          })
+          setIsProcessingPayment(false)
+          return
+        }
+
+        throw new Error(errorData.error || 'Error al procesar el pago')
       }
 
       const result = await response.json()
@@ -355,7 +383,8 @@ export function MovementsBillingModule() {
       setSelectedMovementForPayment(null)
       setPaymentAmount("")
       setPaymentReference("")
-      setPaymentCuenta("")
+      setPaymentMetodoPago("")
+      setPaymentCuentaDestino("")
 
       // Refrescar datos
       await cargarDatos()
@@ -1218,18 +1247,21 @@ export function MovementsBillingModule() {
                   </div>
                 </div>
 
-                {/* Forma de Pago */}
+                {/* Método de Pago */}
                 <div>
-                  <Label htmlFor="payment-cuenta">Cuenta <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="payment-metodo">Método de Pago <span className="text-red-500">*</span></Label>
                   <Select
-                    value={paymentCuenta}
-                    onValueChange={setPaymentCuenta}
+                    value={paymentMetodoPago}
+                    onValueChange={(value) => {
+                      setPaymentMetodoPago(value)
+                      setPaymentCuentaDestino("") // Reset cuenta destino cuando cambia método
+                    }}
                   >
                     <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Seleccionar cuenta..." />
+                      <SelectValue placeholder="Seleccionar método de pago..." />
                     </SelectTrigger>
                     <SelectContent className="bg-white">
-                      {cuentas.map((cuenta) => (
+                      {metodosPago.map((cuenta) => (
                         <SelectItem key={cuenta.id} value={cuenta.id.toString()}>
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{cuenta.nombre}</span>
@@ -1242,6 +1274,48 @@ export function MovementsBillingModule() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Cuenta Destino (solo aparece si hay método seleccionado) */}
+                {paymentMetodoPago && (
+                  <div>
+                    <Label htmlFor="payment-cuenta-destino">Cuenta Destino <span className="text-red-500">*</span></Label>
+                    <Select
+                      value={paymentCuentaDestino}
+                      onValueChange={setPaymentCuentaDestino}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Seleccionar cuenta destino..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white">
+                        {cuentasDestino
+                          .filter((cuenta) => {
+                            const metodoPagoSeleccionado = metodosPago.find(c => c.id.toString() === paymentMetodoPago)
+                            if (!metodoPagoSeleccionado) return false
+                            // Si el método de pago es Efectivo, solo mostrar cuentas de tipo Efectivo
+                            if (metodoPagoSeleccionado.tipo === 'Efectivo') {
+                              return cuenta.tipo === 'Efectivo'
+                            }
+                            // Si el método de pago es Transferencia, solo mostrar cuentas de tipo Bancaria
+                            if (metodoPagoSeleccionado.tipo === 'Transferencia') {
+                              return cuenta.tipo === 'Bancaria'
+                            }
+                            // Para otros tipos, mostrar todas las cuentas
+                            return true
+                          })
+                          .map((cuenta) => (
+                            <SelectItem key={cuenta.id} value={cuenta.id.toString()}>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{cuenta.nombre}</span>
+                                <span className="text-xs text-muted-foreground bg-gray-100 px-2 py-0.5 rounded">
+                                  {cuenta.tipo}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 <div>
                   <Label htmlFor="payment-reference">Referencia (Opcional)</Label>
@@ -1278,7 +1352,8 @@ export function MovementsBillingModule() {
                 setSelectedMovementForPayment(null)
                 setPaymentAmount("")
                 setPaymentReference("")
-                setPaymentCuenta("")
+                setPaymentMetodoPago("")
+                setPaymentCuentaDestino("")
               }}
               disabled={isProcessingPayment}
             >
@@ -1291,7 +1366,8 @@ export function MovementsBillingModule() {
                 !paymentAmount ||
                 parseFloat(paymentAmount) <= 0 ||
                 parseFloat(paymentAmount) > (selectedMovementForPayment?.saldo || 0) ||
-                !paymentCuenta
+                !paymentMetodoPago ||
+                !paymentCuentaDestino
               }
               className="bg-green-600 hover:bg-green-700 text-white"
             >
