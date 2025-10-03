@@ -896,6 +896,9 @@ export function MembersModule() {
                         <SelectItem value="Activo">Activo</SelectItem>
                         <SelectItem value="Adherente">Adherente</SelectItem>
                         <SelectItem value="Vitalicio">Vitalicio</SelectItem>
+                        <SelectItem value="Inactivo">Inactivo</SelectItem>
+                        <SelectItem value="De baja">De baja</SelectItem>
+                        <SelectItem value="Prospecto">Prospecto</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1016,6 +1019,9 @@ export function MembersModule() {
                   <SelectItem value="Activo">Activo</SelectItem>
                   <SelectItem value="Adherente">Adherente</SelectItem>
                   <SelectItem value="Vitalicio">Vitalicio</SelectItem>
+                  <SelectItem value="Inactivo">Inactivo</SelectItem>
+                  <SelectItem value="De baja">De baja</SelectItem>
+                  <SelectItem value="Prospecto">Prospecto</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1087,6 +1093,12 @@ export function MembersModule() {
                             ? "bg-blue-100 text-blue-800 hover:bg-blue-200"
                             : member.tipo_socio === "Vitalicio"
                             ? "bg-purple-100 text-purple-800 hover:bg-purple-200"
+                            : member.tipo_socio === "Inactivo"
+                            ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
+                            : member.tipo_socio === "De baja"
+                            ? "bg-red-100 text-red-800 hover:bg-red-200"
+                            : member.tipo_socio === "Prospecto"
+                            ? "bg-cyan-100 text-cyan-800 hover:bg-cyan-200"
                             : "bg-gray-100 text-gray-800 hover:bg-gray-200"
                         }
                       >
@@ -1441,6 +1453,9 @@ export function MembersModule() {
                       <SelectItem value="Activo">Activo</SelectItem>
                       <SelectItem value="Adherente">Adherente</SelectItem>
                       <SelectItem value="Vitalicio">Vitalicio</SelectItem>
+                      <SelectItem value="Inactivo">Inactivo</SelectItem>
+                      <SelectItem value="De baja">De baja</SelectItem>
+                      <SelectItem value="Prospecto">Prospecto</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

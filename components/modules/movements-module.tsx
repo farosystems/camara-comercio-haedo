@@ -126,7 +126,8 @@ export function MovementsModule() {
     ingresos: 0,
     observaciones: "",
     fk_id_usuario: user?.id || "",
-    caja_destino: "" // Campo que no viaja al servidor
+    caja_destino: "", // Campo que no viaja al servidor
+    es_transferencia: false // Controla si se muestra la sección de transferencias
   })
 
   // Formulario de proveedor
@@ -184,7 +185,8 @@ export function MovementsModule() {
       ingresos: 0,
       observaciones: "",
       fk_id_usuario: user?.id || "",
-      caja_destino: ""
+      caja_destino: "",
+      es_transferencia: false
     })
     setSelectedProveedor(null)
     setProveedorSearchTerm("")
@@ -351,7 +353,7 @@ export function MovementsModule() {
         return
       }
 
-      if (!movimientoForm.fk_id_cuenta || !movimientoForm.concepto_ingreso || !movimientoForm.fk_id_concepto) {
+      if (!movimientoForm.fk_id_cuenta || !movimientoForm.fk_id_concepto) {
         toast({
           title: "Error de validación",
           description: "Faltan campos obligatorios",
@@ -699,7 +701,7 @@ export function MovementsModule() {
         todosLosMovimientos.push({
           fecha: new Date(mov.fecha),
           fechaDisplay: formatDateForDisplay(mov.fecha),
-          concepto: mov.concepto_ingreso,
+          concepto: conceptos.find(c => c.id === mov.fk_id_concepto)?.nombre || '-',
           detalle: mov.proveedor?.razon_social || mov.apellido_nombres || '-',
           tipo: mov.tipo,
           monto: parseFloat(mov.ingresos?.toString() || '0')
@@ -1176,7 +1178,7 @@ export function MovementsModule() {
                               {cuentas.find(c => c.id === movimiento.fk_id_cuenta)?.tipo || 'N/A'}
                             </Badge>
                           </TableCell>
-                          <TableCell>{movimiento.concepto_ingreso}</TableCell>
+                          <TableCell>{conceptos.find(c => c.id === movimiento.fk_id_concepto)?.nombre || '-'}</TableCell>
                           <TableCell>
                             {movimiento.proveedor?.razon_social || movimiento.apellido_nombres || '-'}
                           </TableCell>
@@ -1427,187 +1429,64 @@ export function MovementsModule() {
           {/* Formulario de Movimiento */}
           {currentForm === 'movimiento' && (
             <div className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="cuenta">Cuenta *</Label>
-                  <Select value={movimientoForm.fk_id_cuenta.toString()} onValueChange={(value) => setMovimientoForm({...movimientoForm, fk_id_cuenta: parseInt(value)})}>
-                    <SelectTrigger className="truncate">
-                      <SelectValue placeholder="Seleccionar cuenta" className="truncate" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {cuentas.map((cuenta) => (
-                        <SelectItem key={cuenta.id} value={cuenta.id.toString()}>
-                          <div className="truncate">
-                            {cuenta.nombre} ({cuenta.tipo})
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="fecha">Fecha *</Label>
-                  <Input
-                    id="fecha"
-                    type="date"
-                    value={movimientoForm.fecha}
-                    onChange={(e) => setMovimientoForm({...movimientoForm, fecha: e.target.value})}
-                  />
-                </div>
+              {/* Sección: Movimientos */}
+              <div>
+                <h4 className="text-sm font-semibold mb-3">Movimientos</h4>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="fecha">Fecha *</Label>
+                    <Input
+                      id="fecha"
+                      type="date"
+                      value={movimientoForm.fecha}
+                      onChange={(e) => setMovimientoForm({...movimientoForm, fecha: e.target.value})}
+                    />
+                  </div>
 
-                {/* Campo Caja destino - opcional */}
-                <div className="space-y-2">
-                  <Label htmlFor="caja_destino">Caja destino (Opcional)</Label>
-                  <Select
-                    value={movimientoForm.caja_destino || "none"}
-                    onValueChange={(value) => {
-                      const cajaSeleccionada = value === "none" ? "" : value
-                      setMovimientoForm({
-                        ...movimientoForm,
-                        caja_destino: cajaSeleccionada,
-                        tipo: cajaSeleccionada ? "Egreso" : "Ingreso", // Cambiar automáticamente el tipo
-                        fk_id_concepto: cajaSeleccionada ? 4 : 0 // Fijar concepto ID=4 si hay caja destino
-                      })
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar caja destino" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Sin transferencia</SelectItem>
-                      {cajasAbiertas.map((lote) => (
-                        <SelectItem key={lote.id_lote} value={lote.id_lote.toString()}>
-                          <div className="flex items-center gap-2">
-                            <span>{lote.caja?.nombre}</span>
-                            <span className="text-xs text-muted-foreground">
-                              ({lote.usuario?.nombre})
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {movimientoForm.caja_destino && (
-                    <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                      ℹ️ Al seleccionar una caja destino, se generará un egreso desde su caja y un ingreso en la caja seleccionada.
-                    </div>
-                  )}
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="numero_comprobante">Nº Comprobante</Label>
+                    <Input
+                      id="numero_comprobante"
+                      value={movimientoForm.numero_comprobante}
+                      onChange={(e) => setMovimientoForm({...movimientoForm, numero_comprobante: e.target.value})}
+                      placeholder="Número de comprobante"
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="concepto_ingreso">Concepto del {movimientoForm.caja_destino ? 'Egreso' : 'Ingreso'} *</Label>
-                  <Input
-                    id="concepto_ingreso"
-                    value={movimientoForm.concepto_ingreso}
-                    onChange={(e) => setMovimientoForm({...movimientoForm, concepto_ingreso: e.target.value})}
-                    placeholder="Describir el concepto"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="proveedor">Proveedor</Label>
-                  {selectedProveedor ? (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium text-blue-900">{selectedProveedor.razon_social}</div>
-                          {(selectedProveedor.nombre || selectedProveedor.apellido) && (
-                            <div className="text-sm text-blue-700">
-                              {selectedProveedor.nombre} {selectedProveedor.apellido}
-                            </div>
-                          )}
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedProveedor(null)
-                            setMovimientoForm({...movimientoForm, fk_id_proveedor: null})
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="relative">
-                        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          placeholder="Buscar proveedor por razón social..."
-                          value={proveedorSearchTerm}
-                          onChange={(e) => {
-                            setProveedorSearchTerm(e.target.value)
-                            setShowProveedorSearch(e.target.value.length > 0)
-                          }}
-                          className="pl-8"
-                        />
-                      </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tipo">Tipo de Movimiento *</Label>
+                    <Select
+                      value={movimientoForm.es_transferencia ? 'Transferencia' : movimientoForm.tipo}
+                      onValueChange={(value: 'Ingreso' | 'Egreso' | 'Transferencia') => {
+                        if (value === 'Transferencia') {
+                          setMovimientoForm({
+                            ...movimientoForm,
+                            tipo: 'Egreso',
+                            es_transferencia: true
+                          })
+                        } else {
+                          setMovimientoForm({
+                            ...movimientoForm,
+                            tipo: value,
+                            caja_destino: '',
+                            es_transferencia: false
+                          })
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Ingreso">Ingreso</SelectItem>
+                        <SelectItem value="Egreso">Egreso</SelectItem>
+                        <SelectItem value="Transferencia">Transferencia</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                      {showProveedorSearch && proveedorSearchTerm && (
-                        <div className="border rounded-lg max-h-40 overflow-y-auto bg-white">
-                          {proveedores
-                            .filter(p =>
-                              p.estado === 'Activo' &&
-                              p.razon_social.toLowerCase().includes(proveedorSearchTerm.toLowerCase())
-                            ).length === 0 ? (
-                            <div className="p-3 text-center text-muted-foreground">
-                              No se encontraron proveedores
-                            </div>
-                          ) : (
-                            proveedores
-                              .filter(p =>
-                                p.estado === 'Activo' &&
-                                p.razon_social.toLowerCase().includes(proveedorSearchTerm.toLowerCase())
-                              )
-                              .slice(0, 5)
-                              .map((proveedor) => (
-                                <div
-                                  key={proveedor.id}
-                                  className="p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
-                                  onClick={() => {
-                                    setSelectedProveedor(proveedor)
-                                    setMovimientoForm({...movimientoForm, fk_id_proveedor: proveedor.id})
-                                    setProveedorSearchTerm("")
-                                    setShowProveedorSearch(false)
-                                  }}
-                                >
-                                  <div className="font-medium">{proveedor.razon_social}</div>
-                                  {(proveedor.nombre || proveedor.apellido) && (
-                                    <div className="text-sm text-muted-foreground">
-                                      {proveedor.nombre} {proveedor.apellido}
-                                    </div>
-                                  )}
-                                  {proveedor.email && (
-                                    <div className="text-xs text-muted-foreground">{proveedor.email}</div>
-                                  )}
-                                </div>
-                              ))
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="numero_comprobante">Nº Comprobante/Nota</Label>
-                  <Input
-                    id="numero_comprobante"
-                    value={movimientoForm.numero_comprobante}
-                    onChange={(e) => setMovimientoForm({...movimientoForm, numero_comprobante: e.target.value})}
-                    placeholder="Número de comprobante"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="concepto">Concepto *</Label>
-                  {movimientoForm.caja_destino ? (
-                    <div className="bg-gray-50 border border-gray-300 rounded px-3 py-2 text-gray-600">
-                      {conceptos.find(c => c.id === 4)?.nombre || 'Transferencia entre cajas'} (Solo lectura)
-                    </div>
-                  ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="concepto">Concepto *</Label>
                     <Select value={movimientoForm.fk_id_concepto.toString()} onValueChange={(value) => setMovimientoForm({...movimientoForm, fk_id_concepto: parseInt(value)})}>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar concepto" />
@@ -1620,33 +1499,8 @@ export function MovementsModule() {
                         ))}
                       </SelectContent>
                     </Select>
-                  )}
-                </div>
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="tipo">Tipo de Movimiento *</Label>
-                  {movimientoForm.caja_destino ? (
-                    <div className="bg-gray-50 border border-gray-300 rounded px-3 py-2 text-gray-600">
-                      Egreso (Solo lectura)
-                    </div>
-                  ) : (
-                    <Select value={movimientoForm.tipo} onValueChange={(value: 'Ingreso' | 'Egreso') => setMovimientoForm({...movimientoForm, tipo: value})}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Ingreso">Ingreso</SelectItem>
-                        <SelectItem value="Egreso">Egreso</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-              </div>
-              
-              {/* Sección de Monto */}
-              <div className="space-y-4">
-                <div className="border-t pt-4">
-                  <h4 className="text-sm font-medium mb-3">Monto</h4>
                   <div className="space-y-2">
                     <Label htmlFor="monto">Monto *</Label>
                     <Input
@@ -1662,38 +1516,101 @@ export function MovementsModule() {
                   </div>
                 </div>
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="observaciones">Observaciones</Label>
-                <Textarea
-                  id="observaciones"
-                  value={movimientoForm.observaciones}
-                  onChange={(e) => setMovimientoForm({...movimientoForm, observaciones: e.target.value})}
-                  placeholder="Observaciones adicionales"
-                />
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="usuario_nombre" className="flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  Usuario
-                </Label>
-                <Input
-                  id="usuario_nombre"
-                  value={
-                    user?.fullName ||
-                    `${user?.firstName || ''} ${user?.lastName || ''}`.trim() ||
-                    user?.username ||
-                    user?.emailAddresses[0]?.emailAddress?.split('@')[0] ||
-                    'Usuario no identificado'
-                  }
-                  readOnly
-                  className="bg-gray-50"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Email: {user?.emailAddresses[0]?.emailAddress || 'No disponible'}
-                </p>
-              </div>
+              {/* Sección: Transferencias entre cajas - Solo visible si es_transferencia es true */}
+              {movimientoForm.es_transferencia && (
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-semibold mb-3">Transferencias entre cajas</h4>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="caja_destino">Caja destino</Label>
+                      <Select
+                        value={movimientoForm.caja_destino || "none"}
+                        onValueChange={(value) => {
+                          const cajaSeleccionada = value === "none" ? "" : value
+                          setMovimientoForm({
+                            ...movimientoForm,
+                            caja_destino: cajaSeleccionada
+                          })
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar caja destino" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Sin transferencia</SelectItem>
+                          {cajasAbiertas.map((lote) => (
+                            <SelectItem key={lote.id_lote} value={lote.id_lote.toString()}>
+                              <div className="flex items-center gap-2">
+                                <span>{lote.caja?.nombre}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  ({lote.usuario?.nombre})
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {movimientoForm.caja_destino && (
+                        <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                          ℹ️ Se generará un egreso desde su caja y un ingreso en la caja seleccionada.
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="observaciones">Observaciones</Label>
+                      <Textarea
+                        id="observaciones"
+                        value={movimientoForm.observaciones}
+                        onChange={(e) => setMovimientoForm({...movimientoForm, observaciones: e.target.value})}
+                        placeholder="Observaciones adicionales"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="usuario_nombre" className="flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        Usuario
+                      </Label>
+                      <Input
+                        id="usuario_nombre"
+                        value={user?.fullName || user?.primaryEmailAddress?.emailAddress || 'Usuario'}
+                        disabled
+                        className="bg-gray-50"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Observaciones y Usuario para movimientos normales */}
+              {!movimientoForm.es_transferencia && (
+                <div className="border-t pt-4 space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="observaciones">Observaciones</Label>
+                    <Textarea
+                      id="observaciones"
+                      value={movimientoForm.observaciones}
+                      onChange={(e) => setMovimientoForm({...movimientoForm, observaciones: e.target.value})}
+                      placeholder="Observaciones adicionales"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="usuario_nombre" className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      Usuario
+                    </Label>
+                    <Input
+                      id="usuario_nombre"
+                      value={user?.fullName || user?.primaryEmailAddress?.emailAddress || 'Usuario'}
+                      disabled
+                      className="bg-gray-50"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

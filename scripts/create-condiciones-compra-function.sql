@@ -16,7 +16,8 @@ RETURNS TABLE (
   fk_id_proveedor BIGINT,
   activo BOOLEAN,
   created_at TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ
+  updated_at TIMESTAMPTZ,
+  fk_id_caja VARCHAR,
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
