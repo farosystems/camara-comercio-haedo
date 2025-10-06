@@ -69,10 +69,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Validar campos obligatorios
-    if (!data.fk_id_cuenta || data.fk_id_cuenta === 0 || !data.concepto_ingreso || !data.fk_id_concepto || data.fk_id_concepto === 0 || !data.ingresos || data.ingresos <= 0 || !data.caja_destino_id) {
+    if (!data.fk_id_cuenta || data.fk_id_cuenta === 0 || !data.fk_id_concepto || data.fk_id_concepto === 0 || !data.ingresos || data.ingresos <= 0 || !data.caja_destino_id) {
       console.log('Error de validación:', {
         fk_id_cuenta: data.fk_id_cuenta,
-        concepto_ingreso: data.concepto_ingreso,
         fk_id_concepto: data.fk_id_concepto,
         ingresos: data.ingresos,
         caja_destino_id: data.caja_destino_id
@@ -81,7 +80,6 @@ export async function POST(request: NextRequest) {
         error: 'Faltan campos obligatorios para la transferencia',
         details: {
           cuenta_valida: data.fk_id_cuenta && data.fk_id_cuenta !== 0,
-          concepto_valido: !!data.concepto_ingreso,
           fk_concepto_valido: data.fk_id_concepto && data.fk_id_concepto !== 0,
           monto_valido: data.ingresos && data.ingresos > 0,
           caja_destino_valida: !!data.caja_destino_id
@@ -90,13 +88,18 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    // Obtener el nombre del concepto para el egreso
+    const { data: conceptoEgreso } = await supabase
+      .from('conceptos_movimientos')
+      .select('nombre')
+      .eq('id', data.fk_id_concepto)
+      .single()
+
     // 1. Preparar datos del EGRESO (desde la caja del usuario actual)
     const egresoData = {
       fk_id_cuenta: data.fk_id_cuenta,
       fecha: data.fecha,
-      concepto_ingreso: `Transferencia a otra caja - ${data.concepto_ingreso}`,
       apellido_nombres: data.apellido_nombres || null,
-      fk_id_proveedor: data.fk_id_proveedor || null,
       numero_comprobante: data.numero_comprobante || null,
       nota: data.nota || null,
       fk_id_concepto: data.fk_id_concepto, // Concepto ID = 4
@@ -135,7 +138,7 @@ export async function POST(request: NextRequest) {
           fk_id_cuenta_tesoreria: data.fk_id_cuenta,
           tipo: 'egreso',
           monto: parseFloat(data.ingresos),
-          concepto: `Transferencia - ${data.concepto_ingreso}`,
+          concepto: `Transferencia - ${conceptoEgreso?.nombre || 'Sin concepto'}`,
           observaciones: `Transferencia desde módulo hacia caja destino ID: ${data.caja_destino_id}`
         }])
 
@@ -168,13 +171,18 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    // Obtener el nombre del concepto para el ingreso
+    const { data: conceptoIngreso } = await supabase
+      .from('conceptos_movimientos')
+      .select('nombre')
+      .eq('id', 5)
+      .single()
+
     // 5. Preparar datos del INGRESO (hacia la caja destino)
     const ingresoData = {
       fk_id_cuenta: data.fk_id_cuenta,
       fecha: data.fecha,
-      concepto_ingreso: `Transferencia recibida - ${data.concepto_ingreso}`,
       apellido_nombres: data.apellido_nombres || null,
-      fk_id_proveedor: data.fk_id_proveedor || null,
       numero_comprobante: data.numero_comprobante || null,
       nota: data.nota || null,
       fk_id_concepto: 5, // Concepto ID = 5 para ingresos en caja destino
@@ -211,7 +219,7 @@ export async function POST(request: NextRequest) {
         fk_id_cuenta_tesoreria: data.fk_id_cuenta,
         tipo: 'ingreso',
         monto: parseFloat(data.ingresos),
-        concepto: `Transferencia recibida - ${data.concepto_ingreso}`,
+        concepto: `Transferencia recibida - ${conceptoIngreso?.nombre || 'Sin concepto'}`,
         observaciones: `Transferencia recibida desde usuario ${usuario.nombre}`
       }])
 

@@ -17,6 +17,7 @@ import { getUsuarios, getEstadisticasUsuarios, crearUsuario, actualizarUsuario }
 
 export function AdminModule() {
   const [users, setUsers] = useState<Usuario[]>([])
+  const [cajas, setCajas] = useState<any[]>([])
   const [estadisticas, setEstadisticas] = useState({
     total: 0,
     administradores: 0,
@@ -50,16 +51,18 @@ export function AdminModule() {
     prueba_gratis: false,
     password_hash: '',
     clerk_user_id: null,
-    ultimo_acceso: null
+    ultimo_acceso: null,
+    fk_id_caja: null as number | null
   })
-  
+
   const [editUser, setEditUser] = useState({
     nombre: '',
     email: '',
     telefono: '',
     rol: 'socio' as 'admin' | 'supervisor' | 'socio',
     status: 'Activo' as 'Activo' | 'Inactivo' | 'Bloqueado',
-    prueba_gratis: false
+    prueba_gratis: false,
+    fk_id_caja: null as number | null
   })
 
   const [passwordForm, setPasswordForm] = useState({
@@ -84,11 +87,19 @@ export function AdminModule() {
     timezone: "America/Argentina/Buenos_Aires",
   })
 
-  // Cargar datos de usuarios desde Supabase
+  // Cargar datos de usuarios y cajas desde Supabase
   useEffect(() => {
     async function cargarDatos() {
       try {
         setLoading(true)
+
+        // Cargar cajas
+        const cajasResponse = await fetch('/api/cajas')
+        if (cajasResponse.ok) {
+          const cajasData = await cajasResponse.json()
+          setCajas(cajasData.cajas || [])
+        }
+
         const [usuariosData, estadisticasData] = await Promise.all([
           getUsuarios(),
           getEstadisticasUsuarios()
@@ -237,7 +248,8 @@ export function AdminModule() {
       telefono: user.telefono || '',
       rol: user.rol,
       status: user.status,
-      prueba_gratis: user.prueba_gratis
+      prueba_gratis: user.prueba_gratis,
+      fk_id_caja: user.fk_id_caja || null
     })
     setIsEditUserDialogOpen(true)
   }
@@ -424,6 +436,25 @@ export function AdminModule() {
                       />
                       <Label htmlFor="prueba_gratis" className="text-sm font-medium text-gray-700">Prueba gratis</Label>
                     </div>
+                    <div className="grid gap-3">
+                      <Label htmlFor="new-caja" className="text-sm font-medium text-gray-700">Caja Asignada</Label>
+                      <Select
+                        value={newUser.fk_id_caja?.toString() || "0"}
+                        onValueChange={(value) => setNewUser({...newUser, fk_id_caja: value === "0" ? null : parseInt(value)})}
+                      >
+                        <SelectTrigger className="h-11 border-gray-200 focus:border-black focus:ring-black">
+                          <SelectValue placeholder="Seleccionar caja" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Sin caja asignada</SelectItem>
+                          {cajas.map((caja) => (
+                            <SelectItem key={caja.id} value={caja.id.toString()}>
+                              {caja.nombre}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                                   <div className="flex justify-end gap-3 pt-6 border-t border-gray-100">
                     <Button 
@@ -488,6 +519,7 @@ export function AdminModule() {
                       <TableHead className="font-semibold">Email</TableHead>
                       <TableHead className="font-semibold">Teléfono</TableHead>
                       <TableHead className="font-semibold">Rol</TableHead>
+                      <TableHead className="font-semibold">Caja Asignada</TableHead>
                       <TableHead className="font-semibold">Socio Relacionado</TableHead>
                       <TableHead className="font-semibold">Estado</TableHead>
                       <TableHead className="font-semibold">Prueba Gratis</TableHead>
@@ -506,6 +538,15 @@ export function AdminModule() {
                             <Shield className="mr-1 h-3 w-3" />
                             {user.rol === "admin" ? "Administrador" : user.rol === "supervisor" ? "Supervisor" : "Socio"}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {user.fk_id_caja ? (
+                            <span className="text-sm font-medium text-gray-700">
+                              {cajas.find(c => c.id === user.fk_id_caja)?.nombre || 'Caja no encontrada'}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">Sin asignar</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           {user.rol === 'socio' && user.socios && user.socios.length > 0 ? (
@@ -809,6 +850,25 @@ export function AdminModule() {
                   className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black"
                 />
                 <Label htmlFor="edit-prueba_gratis" className="text-sm font-medium text-gray-700">Prueba gratis</Label>
+              </div>
+              <div className="grid gap-3">
+                <Label htmlFor="edit-caja" className="text-sm font-medium text-gray-700">Caja Asignada</Label>
+                <Select
+                  value={editUser.fk_id_caja?.toString() || "0"}
+                  onValueChange={(value) => setEditUser({...editUser, fk_id_caja: value === "0" ? null : parseInt(value)})}
+                >
+                  <SelectTrigger className="h-11 border-gray-200 focus:border-black focus:ring-black">
+                    <SelectValue placeholder="Seleccionar caja" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Sin caja asignada</SelectItem>
+                    {cajas.map((caja) => (
+                      <SelectItem key={caja.id} value={caja.id.toString()}>
+                        {caja.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
                       <div className="flex justify-end gap-3 pt-6 border-t border-gray-100">

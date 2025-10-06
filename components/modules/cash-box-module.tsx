@@ -149,10 +149,26 @@ export function CashBoxModule() {
 
   const loadCajas = async () => {
     try {
+      // Primero obtener el usuario actual para saber su caja asignada
+      const userResponse = await fetch('/api/usuarios/current')
+      let cajaAsignada = null
+
+      if (userResponse.ok) {
+        const userData = await userResponse.json()
+        cajaAsignada = userData.usuario?.fk_id_caja
+      }
+
       const response = await fetch('/api/cajas')
       if (response.ok) {
         const data = await response.json()
-        setCajas(data.cajas || [])
+        let cajasData = data.cajas || []
+
+        // Si el usuario tiene una caja asignada, filtrar solo esa caja
+        if (cajaAsignada) {
+          cajasData = cajasData.filter((caja: Caja) => caja.id === cajaAsignada)
+        }
+
+        setCajas(cajasData)
       }
     } catch (error) {
       console.error("Error cargando cajas:", error)
@@ -239,7 +255,7 @@ export function CashBoxModule() {
       if (lotesResponse.ok) {
         const lotesData = await lotesResponse.json()
         console.log('Lotes cargados para resumen general:', lotesData.lotes?.length, 'lotes')
-        console.log('Lotes abiertos encontrados:', lotesData.lotes?.filter(l => l.abierto).length)
+        console.log('Lotes abiertos encontrados:', lotesData.lotes?.filter((l: any) => l.abierto).length)
         setTodosLosLotes(lotesData.lotes || [])
       }
 
@@ -440,11 +456,11 @@ export function CashBoxModule() {
       yPos += 15
 
       // Calcular totales para el resumen financiero
-      const ingresosEfectivoPDF = detalles
+      const ingresosEfectivoPDF = (detalles || [])
         .filter(d => d.tipo?.toLowerCase() === 'ingreso' && d.cuenta?.tipo?.toLowerCase() === 'efectivo')
         .reduce((sum, d) => sum + parseFloat(d.monto?.toString() || '0'), 0)
 
-      const egresosEfectivoPDF = detalles
+      const egresosEfectivoPDF = (detalles || [])
         .filter(d => d.tipo?.toLowerCase() === 'egreso' && d.cuenta?.tipo?.toLowerCase() === 'efectivo')
         .reduce((sum, d) => sum + parseFloat(d.monto?.toString() || '0'), 0)
 
@@ -499,10 +515,10 @@ export function CashBoxModule() {
       // Calcular resumen por cuenta
       const resumenPorCuenta = new Map()
 
-      detalles.forEach(detalle => {
+      ;(detalles || []).forEach(detalle => {
         const cuentaId = detalle.fk_id_cuenta_tesoreria
         const cuentaNombre = detalle.cuenta?.nombre || 'Cuenta desconocida'
-        const monto = parseFloat(detalle.monto || 0)
+        const monto = parseFloat(detalle.monto?.toString() || '0')
 
         if (!resumenPorCuenta.has(cuentaId)) {
           resumenPorCuenta.set(cuentaId, {
@@ -587,7 +603,7 @@ export function CashBoxModule() {
 
       // Datos de la tabla
       doc.setFont('helvetica', 'normal')
-      detalles.forEach((detalle, index) => {
+      ;(detalles || []).forEach((detalle, index) => {
         if (yPos > 270) { // Nueva página si es necesario
           doc.addPage()
           yPos = 20
@@ -950,7 +966,7 @@ export function CashBoxModule() {
               {/* Movimientos */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Movimientos de Hoy</CardTitle>
+                  <CardTitle>Movimientos de la Caja Actual</CardTitle>
                   <CardDescription>Todos los movimientos de la caja actual</CardDescription>
                 </CardHeader>
                 <CardContent>

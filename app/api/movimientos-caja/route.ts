@@ -69,10 +69,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Validar campos obligatorios
-    if (!data.fk_id_cuenta || data.fk_id_cuenta === 0 || !data.concepto_ingreso || !data.fk_id_concepto || data.fk_id_concepto === 0 || !data.ingresos || data.ingresos <= 0) {
+    if (!data.fk_id_cuenta || data.fk_id_cuenta === 0 || !data.fk_id_concepto || data.fk_id_concepto === 0 || !data.ingresos || data.ingresos <= 0) {
       console.log('Error de validación:', {
         fk_id_cuenta: data.fk_id_cuenta,
-        concepto_ingreso: data.concepto_ingreso,
         fk_id_concepto: data.fk_id_concepto,
         ingresos: data.ingresos
       })
@@ -80,7 +79,6 @@ export async function POST(request: NextRequest) {
         error: 'Faltan campos obligatorios o el monto debe ser mayor a 0',
         details: {
           cuenta_valida: data.fk_id_cuenta && data.fk_id_cuenta !== 0,
-          concepto_valido: !!data.concepto_ingreso,
           fk_concepto_valido: data.fk_id_concepto && data.fk_id_concepto !== 0,
           monto_valido: data.ingresos && data.ingresos > 0
         },
@@ -93,9 +91,7 @@ export async function POST(request: NextRequest) {
     const movimientoData = {
       fk_id_cuenta: data.fk_id_cuenta,
       fecha: data.fecha,
-      concepto_ingreso: data.concepto_ingreso,
       apellido_nombres: data.apellido_nombres || null,
-      fk_id_proveedor: data.fk_id_proveedor || null,
       numero_comprobante: data.numero_comprobante || null,
       nota: data.nota || null,
       fk_id_concepto: data.fk_id_concepto,
@@ -126,6 +122,13 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (loteAbierto) {
+      // Obtener el nombre del concepto
+      const { data: concepto } = await supabase
+        .from('conceptos_movimientos')
+        .select('nombre')
+        .eq('id', data.fk_id_concepto)
+        .single()
+
       // Registrar el movimiento también en el detalle del lote activo
       const { error: errorDetalleLote } = await supabase
         .from('detalle_lotes_operaciones')
@@ -134,7 +137,7 @@ export async function POST(request: NextRequest) {
           fk_id_cuenta_tesoreria: data.fk_id_cuenta,
           tipo: data.tipo.toLowerCase(), // 'Ingreso' -> 'ingreso', 'Egreso' -> 'egreso'
           monto: parseFloat(data.ingresos),
-          concepto: data.concepto_ingreso,
+          concepto: concepto?.nombre || 'Sin concepto',
           observaciones: `Movimiento desde módulo: ${data.observaciones || 'Sin observaciones'}${data.apellido_nombres ? ` - ${data.apellido_nombres}` : ''}${data.numero_comprobante ? ` - Comprobante: ${data.numero_comprobante}` : ''}`
         }])
 
@@ -213,7 +216,6 @@ export async function GET(request: NextRequest) {
         *,
         cuenta:cuentas!fk_id_cuenta(nombre, tipo),
         concepto:conceptos_movimientos!fk_id_concepto(nombre, tipo),
-        proveedor:proveedores!fk_id_proveedor(razon_social),
         usuario:usuarios!fk_id_usuario(nombre)
       `)
       .order('fecha', { ascending: false })

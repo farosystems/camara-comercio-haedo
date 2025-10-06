@@ -112,6 +112,15 @@ export function BillingModule() {
     sociosAfectados: number;
   } | null>(null)
 
+  // Estados para filtros avanzados de movimientos
+  const [filtroConcepto, setFiltroConcepto] = useState<number>(0)
+  const [filtroEstado, setFiltroEstado] = useState<string>("todos")
+  const [filtroCampoFecha, setFiltroCampoFecha] = useState<"fecha" | "vencimiento">("fecha")
+  const [filtroOperadorFecha, setFiltroOperadorFecha] = useState<"entre" | "mayor" | "menor">("entre")
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState("")
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState("")
+  const [filtroFechaValor, setFiltroFechaValor] = useState("")
+
   // Cargar datos desde Supabase
   useEffect(() => {
     cargarDatos()
@@ -472,30 +481,156 @@ export function BillingModule() {
         <TabsContent value="movements" className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Movimientos de Cuenta</CardTitle>
-                  <CardDescription>Registro de cargos y pagos de todos los socios</CardDescription>
-                </div>
-                <div className="flex gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Buscar movimientos..." className="pl-8 w-64" />
-                  </div>
-                  <Select>
-                    <SelectTrigger className="w-40">
-                      <Filter className="h-4 w-4 mr-2" />
-                      <SelectValue placeholder="Filtrar" />
+              <div>
+                <CardTitle>Movimientos de Cuenta</CardTitle>
+                <CardDescription>Registro de cargos y pagos de todos los socios</CardDescription>
+              </div>
+
+              {/* Filtros Avanzados */}
+              <div className="mt-4 grid gap-4 md:grid-cols-6">
+                {/* Filtro por Concepto */}
+                <div className="space-y-2">
+                  <Label htmlFor="filtro_concepto">Concepto</Label>
+                  <Select value={filtroConcepto.toString()} onValueChange={(value) => setFiltroConcepto(parseInt(value))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos los conceptos" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="todos">Todos</SelectItem>
-                      <SelectItem value="cargos">Solo Cargos</SelectItem>
-                      <SelectItem value="pagos">Solo Pagos</SelectItem>
-                      <SelectItem value="pendientes">Pendientes</SelectItem>
-                      <SelectItem value="vencidos">Vencidos</SelectItem>
+                      <SelectItem value="0">Todos</SelectItem>
+                      {cargos.map((cargo) => (
+                        <SelectItem key={cargo.id} value={cargo.id.toString()}>
+                          {cargo.nombre}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Filtro por Estado */}
+                <div className="space-y-2">
+                  <Label htmlFor="filtro_estado">Estado</Label>
+                  <Select value={filtroEstado} onValueChange={setFiltroEstado}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      <SelectItem value="Pendiente">Pendiente</SelectItem>
+                      <SelectItem value="Cobrada">Cobrada</SelectItem>
+                      <SelectItem value="Vencida">Vencida</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Selector de Campo de Fecha */}
+                <div className="space-y-2">
+                  <Label htmlFor="filtro_campo_fecha">Campo</Label>
+                  <Select value={filtroCampoFecha} onValueChange={(value: "fecha" | "vencimiento") => setFiltroCampoFecha(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fecha">Fecha</SelectItem>
+                      <SelectItem value="vencimiento">Vencimiento</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Operador de Comparación */}
+                <div className="space-y-2">
+                  <Label htmlFor="filtro_operador">Operador</Label>
+                  <Select value={filtroOperadorFecha} onValueChange={(value: "entre" | "mayor" | "menor") => setFiltroOperadorFecha(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="entre">Entre</SelectItem>
+                      <SelectItem value="mayor">Mayor a</SelectItem>
+                      <SelectItem value="menor">Menor a</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Fechas según el operador */}
+                {filtroOperadorFecha === "entre" ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="filtro_fecha_desde">Desde</Label>
+                      <Input
+                        id="filtro_fecha_desde"
+                        type="date"
+                        value={filtroFechaDesde}
+                        onChange={(e) => setFiltroFechaDesde(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="filtro_fecha_hasta">Hasta</Label>
+                      <Input
+                        id="filtro_fecha_hasta"
+                        type="date"
+                        value={filtroFechaHasta}
+                        onChange={(e) => setFiltroFechaHasta(e.target.value)}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="filtro_fecha_valor">Fecha</Label>
+                    <Input
+                      id="filtro_fecha_valor"
+                      type="date"
+                      value={filtroFechaValor}
+                      onChange={(e) => setFiltroFechaValor(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Botón Limpiar Filtros y Contador */}
+              <div className="mt-4 flex justify-between items-center">
+                <div className="text-sm text-muted-foreground">
+                  Mostrando {movements.filter((movement) => {
+                    if (filtroConcepto !== 0 && movement.fk_id_cargo !== filtroConcepto) return false
+                    if (filtroEstado !== "todos" && movement.estado !== filtroEstado) return false
+                    const campoFechaValor = filtroCampoFecha === "fecha" ? movement.fecha : movement.fecha_vencimiento
+                    if (!campoFechaValor) return true
+                    if (filtroOperadorFecha === "entre") {
+                      if (filtroFechaDesde && filtroFechaHasta) {
+                        const fechaMovimiento = new Date(campoFechaValor)
+                        const fechaDesde = new Date(filtroFechaDesde)
+                        const fechaHasta = new Date(filtroFechaHasta)
+                        if (fechaMovimiento < fechaDesde || fechaMovimiento > fechaHasta) return false
+                      }
+                    } else if (filtroOperadorFecha === "mayor") {
+                      if (filtroFechaValor) {
+                        const fechaMovimiento = new Date(campoFechaValor)
+                        const fechaComparar = new Date(filtroFechaValor)
+                        if (fechaMovimiento <= fechaComparar) return false
+                      }
+                    } else if (filtroOperadorFecha === "menor") {
+                      if (filtroFechaValor) {
+                        const fechaMovimiento = new Date(campoFechaValor)
+                        const fechaComparar = new Date(filtroFechaValor)
+                        if (fechaMovimiento >= fechaComparar) return false
+                      }
+                    }
+                    return true
+                  }).length} de {movements.length} movimientos
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setFiltroConcepto(0)
+                    setFiltroEstado("todos")
+                    setFiltroCampoFecha("fecha")
+                    setFiltroOperadorFecha("entre")
+                    setFiltroFechaDesde("")
+                    setFiltroFechaHasta("")
+                    setFiltroFechaValor("")
+                  }}
+                >
+                  Limpiar Filtros
+                </Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -514,7 +649,52 @@ export function BillingModule() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {movements.map((movement) => (
+                  {movements
+                    .filter((movement) => {
+                      // Filtro por concepto
+                      if (filtroConcepto !== 0 && movement.fk_id_cargo !== filtroConcepto) {
+                        return false
+                      }
+
+                      // Filtro por estado
+                      if (filtroEstado !== "todos" && movement.estado !== filtroEstado) {
+                        return false
+                      }
+
+                      // Filtro por fecha
+                      const campoFechaValor = filtroCampoFecha === "fecha" ? movement.fecha : movement.fecha_vencimiento
+                      if (!campoFechaValor) return true
+
+                      if (filtroOperadorFecha === "entre") {
+                        if (filtroFechaDesde && filtroFechaHasta) {
+                          const fechaMovimiento = new Date(campoFechaValor)
+                          const fechaDesde = new Date(filtroFechaDesde)
+                          const fechaHasta = new Date(filtroFechaHasta)
+                          if (fechaMovimiento < fechaDesde || fechaMovimiento > fechaHasta) {
+                            return false
+                          }
+                        }
+                      } else if (filtroOperadorFecha === "mayor") {
+                        if (filtroFechaValor) {
+                          const fechaMovimiento = new Date(campoFechaValor)
+                          const fechaComparar = new Date(filtroFechaValor)
+                          if (fechaMovimiento <= fechaComparar) {
+                            return false
+                          }
+                        }
+                      } else if (filtroOperadorFecha === "menor") {
+                        if (filtroFechaValor) {
+                          const fechaMovimiento = new Date(campoFechaValor)
+                          const fechaComparar = new Date(filtroFechaValor)
+                          if (fechaMovimiento >= fechaComparar) {
+                            return false
+                          }
+                        }
+                      }
+
+                      return true
+                    })
+                    .map((movement) => (
                     <TableRow key={movement.id}>
                       <TableCell>{movement.fecha}</TableCell>
                       <TableCell className="font-medium">
@@ -618,7 +798,7 @@ export function BillingModule() {
                       <TableRow key={member.id}>
                         <TableCell className="font-medium">{member.razon_social}</TableCell>
                         <TableCell>{member.cuit}</TableCell>
-                        <TableCell>{member.email}</TableCell>
+                        <TableCell>{member.mail}</TableCell>
                         <TableCell className={currentBalance > 0 ? "text-red-600 font-medium" : "text-green-600 font-medium"}>
                           ${Math.abs(currentBalance).toLocaleString()}
                         </TableCell>

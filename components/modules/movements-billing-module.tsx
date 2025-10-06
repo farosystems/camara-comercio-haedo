@@ -53,6 +53,15 @@ export function MovementsBillingModule() {
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
 
+  // Estados para filtros avanzados
+  const [filtroConcepto, setFiltroConcepto] = useState<number>(0)
+  const [filtroEstado, setFiltroEstado] = useState<string>("todos")
+  const [filtroCampoFecha, setFiltroCampoFecha] = useState<"fecha" | "vencimiento">("fecha")
+  const [filtroOperadorFecha, setFiltroOperadorFecha] = useState<"entre" | "mayor" | "menor">("entre")
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState("")
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState("")
+  const [filtroFechaValor, setFiltroFechaValor] = useState("")
+
   // Estados para pagos
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false)
   const [selectedMemberForPayment, setSelectedMemberForPayment] = useState<Socio | null>(null)
@@ -88,6 +97,12 @@ export function MovementsBillingModule() {
   const [chargeDate, setChargeDate] = useState(() => new Date().toISOString().split('T')[0])
   const [dueDate, setDueDate] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
+
+  // Estados para modal de exportación XLSX
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false)
+  const [exportOption, setExportOption] = useState<"todas" | "vencidas" | "vencidas_fecha">("todas")
+  const [exportFechaVencimiento, setExportFechaVencimiento] = useState("")
+  const [isExporting, setIsExporting] = useState(false)
 
   // Cargar datos desde Supabase
   useEffect(() => {
@@ -177,22 +192,49 @@ export function MovementsBillingModule() {
     const memberName = member?.razon_social || ''
     const matchesMember = memberSearch === "" || memberName.toLowerCase().includes(memberSearch.toLowerCase())
 
-    // Filtro por fecha
-    let matchesDateRange = true
-    if (startDate || endDate) {
-      const movementDate = new Date(movement.fecha)
-      if (startDate) {
-        const start = new Date(startDate)
-        matchesDateRange = matchesDateRange && movementDate >= start
+    // Filtro por concepto
+    if (filtroConcepto !== 0 && movement.fk_id_cargo !== filtroConcepto) {
+      return false
+    }
+
+    // Filtro por estado
+    if (filtroEstado !== "todos" && movement.estado !== filtroEstado) {
+      return false
+    }
+
+    // Filtro por fecha con campo seleccionable y operadores
+    const campoFechaValor = filtroCampoFecha === "fecha" ? movement.fecha : movement.fecha_vencimiento
+    if (!campoFechaValor) return matchesMember
+
+    if (filtroOperadorFecha === "entre") {
+      if (filtroFechaDesde && filtroFechaHasta) {
+        const fechaMovimiento = new Date(campoFechaValor)
+        const fechaDesde = new Date(filtroFechaDesde)
+        const fechaHasta = new Date(filtroFechaHasta)
+        fechaHasta.setHours(23, 59, 59, 999)
+        if (fechaMovimiento < fechaDesde || fechaMovimiento > fechaHasta) {
+          return false
+        }
       }
-      if (endDate) {
-        const end = new Date(endDate)
-        end.setHours(23, 59, 59, 999) // Include the entire end date
-        matchesDateRange = matchesDateRange && movementDate <= end
+    } else if (filtroOperadorFecha === "mayor") {
+      if (filtroFechaValor) {
+        const fechaMovimiento = new Date(campoFechaValor)
+        const fechaComparar = new Date(filtroFechaValor)
+        if (fechaMovimiento <= fechaComparar) {
+          return false
+        }
+      }
+    } else if (filtroOperadorFecha === "menor") {
+      if (filtroFechaValor) {
+        const fechaMovimiento = new Date(campoFechaValor)
+        const fechaComparar = new Date(filtroFechaValor)
+        if (fechaMovimiento >= fechaComparar) {
+          return false
+        }
       }
     }
 
-    return matchesMember && matchesDateRange
+    return matchesMember
   })
 
   // Filtrar miembros para el modal según búsqueda y tipo
@@ -734,6 +776,97 @@ export function MovementsBillingModule() {
     }
   }
 
+  // Función para exportar a XLSX
+  const handleExportToXLSX = async () => {
+    try {
+      setIsExporting(true)
+
+      // Filtrar movimientos según la opción seleccionada
+      let movementsToExport = filteredMovements
+
+      if (exportOption === "vencidas") {
+        // Solo cuotas vencidas (estado = "Vencida")
+        movementsToExport = filteredMovements.filter(m => m.estado === "Vencida")
+      } else if (exportOption === "vencidas_fecha" && exportFechaVencimiento) {
+        // Cuotas vencidas hasta una fecha específica
+        const fechaLimite = new Date(exportFechaVencimiento)
+        movementsToExport = filteredMovements.filter(m => {
+          if (!m.fecha_vencimiento) return false
+          const fechaVenc = new Date(m.fecha_vencimiento)
+          return fechaVenc <= fechaLimite && m.estado !== "Cobrada"
+        })
+      }
+
+      // Preparar datos para exportar
+      const dataToExport = movementsToExport.map(movement => {
+        const member = members.find(m => m.id === movement.fk_id_socio)
+        return {
+          'Fecha': formatDateForDisplay(movement.fecha),
+          'Socio': member?.razon_social || 'N/A',
+          'CUIT': member?.cuit || 'N/A',
+          'Tipo': movement.tipo,
+          'Concepto': movement.concepto,
+          'Monto': movement.monto,
+          'Saldo': movement.saldo,
+          'Vencimiento': movement.fecha_vencimiento ? formatDateForDisplay(movement.fecha_vencimiento) : 'N/A',
+          'Estado': movement.estado,
+          'Comprobante': movement.comprobante || 'N/A'
+        }
+      })
+
+      if (dataToExport.length === 0) {
+        toast({
+          title: "Sin datos",
+          description: "No hay movimientos para exportar con los filtros seleccionados",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Importar librería XLSX dinámicamente
+      const XLSX = await import('xlsx')
+
+      // Crear worksheet
+      const ws = XLSX.utils.json_to_sheet(dataToExport)
+
+      // Crear workbook
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Cuotas')
+
+      // Generar nombre de archivo
+      const fecha = new Date().toISOString().split('T')[0]
+      let fileName = `cuotas_${fecha}.xlsx`
+
+      if (exportOption === "vencidas") {
+        fileName = `cuotas_vencidas_${fecha}.xlsx`
+      } else if (exportOption === "vencidas_fecha") {
+        fileName = `cuotas_vencidas_hasta_${exportFechaVencimiento}.xlsx`
+      }
+
+      // Descargar archivo
+      XLSX.writeFile(wb, fileName)
+
+      toast({
+        title: "Exportación exitosa",
+        description: `Se exportaron ${dataToExport.length} movimientos`,
+      })
+
+      setIsExportModalOpen(false)
+      setExportOption("todas")
+      setExportFechaVencimiento("")
+
+    } catch (error) {
+      console.error('Error exporting to XLSX:', error)
+      toast({
+        title: "Error",
+        description: "No se pudo exportar el archivo",
+        variant: "destructive",
+      })
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -746,6 +879,13 @@ export function MovementsBillingModule() {
         </div>
         <div className="flex gap-2">
           <Button
+            variant="outline"
+            onClick={() => setIsExportModalOpen(true)}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Exportar XLSX
+          </Button>
+          <Button
             className="bg-black hover:bg-gray-800 text-white"
             onClick={() => setIsGenerateChargesModalOpen(true)}
           >
@@ -757,48 +897,148 @@ export function MovementsBillingModule() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-indigo-700">Gestion de cuotas</CardTitle>
-              <CardDescription>Registro de cargos y pagos de todos los socios</CardDescription>
+          <div>
+            <CardTitle className="text-indigo-700">Gestion de cuotas</CardTitle>
+            <CardDescription>Registro de cargos y pagos de todos los socios</CardDescription>
+          </div>
+
+          {/* Filtros Avanzados */}
+          <div className="mt-4 space-y-4">
+            {/* Primera fila: Búsqueda de socio */}
+            <div className="w-full md:w-96">
+              <Label htmlFor="member-search">Buscar Socio</Label>
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="member-search"
+                  placeholder="Buscar por razón social..."
+                  value={memberSearch}
+                  onChange={(e) => setMemberSearch(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
             </div>
-            <div className="flex gap-4 items-end">
-              {/* Buscador por Socio */}
-              <div className="w-64">
-                <Label htmlFor="member-search">Buscar Socio</Label>
-                <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+
+            {/* Segunda fila: Filtros principales */}
+            <div className="grid gap-4 md:grid-cols-6">
+              {/* Filtro por Concepto */}
+              <div className="space-y-2">
+                <Label htmlFor="filtro_concepto">Concepto</Label>
+                <Select value={filtroConcepto.toString()} onValueChange={(value) => setFiltroConcepto(parseInt(value))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Todos</SelectItem>
+                    {cargos.map((cargo) => (
+                      <SelectItem key={cargo.id} value={cargo.id.toString()}>
+                        {cargo.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Filtro por Estado */}
+              <div className="space-y-2">
+                <Label htmlFor="filtro_estado">Estado</Label>
+                <Select value={filtroEstado} onValueChange={setFiltroEstado}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="Pendiente">Pendiente</SelectItem>
+                    <SelectItem value="Cobrada">Cobrada</SelectItem>
+                    <SelectItem value="Vencida">Vencida</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Selector de Campo de Fecha */}
+              <div className="space-y-2">
+                <Label htmlFor="filtro_campo_fecha">Campo</Label>
+                <Select value={filtroCampoFecha} onValueChange={(value: "fecha" | "vencimiento") => setFiltroCampoFecha(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fecha">Fecha</SelectItem>
+                    <SelectItem value="vencimiento">Vencimiento</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Operador de Comparación */}
+              <div className="space-y-2">
+                <Label htmlFor="filtro_operador">Operador</Label>
+                <Select value={filtroOperadorFecha} onValueChange={(value: "entre" | "mayor" | "menor") => setFiltroOperadorFecha(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="entre">Entre</SelectItem>
+                    <SelectItem value="mayor">Mayor a</SelectItem>
+                    <SelectItem value="menor">Menor a</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Fechas según el operador */}
+              {filtroOperadorFecha === "entre" ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="filtro_fecha_desde">Desde</Label>
+                    <Input
+                      id="filtro_fecha_desde"
+                      type="date"
+                      value={filtroFechaDesde}
+                      onChange={(e) => setFiltroFechaDesde(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="filtro_fecha_hasta">Hasta</Label>
+                    <Input
+                      id="filtro_fecha_hasta"
+                      type="date"
+                      value={filtroFechaHasta}
+                      onChange={(e) => setFiltroFechaHasta(e.target.value)}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="filtro_fecha_valor">Fecha</Label>
                   <Input
-                    id="member-search"
-                    placeholder="Buscar por razón social..."
-                    value={memberSearch}
-                    onChange={(e) => setMemberSearch(e.target.value)}
-                    className="pl-8"
+                    id="filtro_fecha_valor"
+                    type="date"
+                    value={filtroFechaValor}
+                    onChange={(e) => setFiltroFechaValor(e.target.value)}
                   />
                 </div>
-              </div>
+              )}
+            </div>
 
-              {/* Filtro por Fecha Desde */}
-              <div className="w-40">
-                <Label htmlFor="start-date">Fecha Desde</Label>
-                <Input
-                  id="start-date"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                />
+            {/* Contador y botón limpiar */}
+            <div className="flex justify-between items-center">
+              <div className="text-sm text-muted-foreground">
+                Mostrando {filteredMovements.length} de {movements.length} movimientos
               </div>
-
-              {/* Filtro por Fecha Hasta */}
-              <div className="w-40">
-                <Label htmlFor="end-date">Fecha Hasta</Label>
-                <Input
-                  id="end-date"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
-              </div>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setMemberSearch("")
+                  setFiltroConcepto(0)
+                  setFiltroEstado("todos")
+                  setFiltroCampoFecha("fecha")
+                  setFiltroOperadorFecha("entre")
+                  setFiltroFechaDesde("")
+                  setFiltroFechaHasta("")
+                  setFiltroFechaValor("")
+                }}
+              >
+                Limpiar Filtros
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -1744,6 +1984,126 @@ export function MovementsBillingModule() {
                 <>
                   <Mail className="mr-2 h-4 w-4" />
                   Enviar Email
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para exportar XLSX */}
+      <Dialog open={isExportModalOpen} onOpenChange={setIsExportModalOpen}>
+        <DialogContent className="max-w-md bg-white">
+          <DialogHeader>
+            <DialogTitle>Exportar Cuotas a XLSX</DialogTitle>
+            <DialogDescription>
+              Seleccione qué cuotas desea exportar
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Opciones de exportación */}
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  id="todas"
+                  name="exportOption"
+                  value="todas"
+                  checked={exportOption === "todas"}
+                  onChange={(e) => setExportOption(e.target.value as "todas")}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="todas" className="cursor-pointer">
+                  Todas las cuotas filtradas
+                </Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  id="vencidas"
+                  name="exportOption"
+                  value="vencidas"
+                  checked={exportOption === "vencidas"}
+                  onChange={(e) => setExportOption(e.target.value as "vencidas")}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="vencidas" className="cursor-pointer">
+                  Solo cuotas vencidas
+                </Label>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id="vencidas_fecha"
+                    name="exportOption"
+                    value="vencidas_fecha"
+                    checked={exportOption === "vencidas_fecha"}
+                    onChange={(e) => setExportOption(e.target.value as "vencidas_fecha")}
+                    className="h-4 w-4"
+                  />
+                  <Label htmlFor="vencidas_fecha" className="cursor-pointer">
+                    Cuotas vencidas hasta fecha específica
+                  </Label>
+                </div>
+
+                {exportOption === "vencidas_fecha" && (
+                  <div className="ml-6 space-y-2">
+                    <Label htmlFor="export_fecha_vencimiento">Fecha límite de vencimiento</Label>
+                    <Input
+                      id="export_fecha_vencimiento"
+                      type="date"
+                      value={exportFechaVencimiento}
+                      onChange={(e) => setExportFechaVencimiento(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Información adicional */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="text-sm text-blue-900">
+                <div className="font-medium mb-1">ℹ️ El archivo incluirá:</div>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li>Fecha, Socio, CUIT</li>
+                  <li>Tipo, Concepto, Monto</li>
+                  <li>Saldo, Vencimiento, Estado</li>
+                  <li>Número de comprobante</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsExportModalOpen(false)
+                setExportOption("todas")
+                setExportFechaVencimiento("")
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleExportToXLSX}
+              disabled={isExporting || (exportOption === "vencidas_fecha" && !exportFechaVencimiento)}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {isExporting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Exportando...
+                </>
+              ) : (
+                <>
+                  <Download className="mr-2 h-4 w-4" />
+                  Exportar
                 </>
               )}
             </Button>
