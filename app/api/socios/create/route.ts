@@ -73,10 +73,10 @@ export async function POST(request: NextRequest) {
       telefono_comercial: body.telefono_comercial || null,
       celular: body.celular || null,
       mail: body.mail,
-      comercializa: body.comercializa || false,
-      quiero_comercializar: body.quiero_comercializar || false,
-      es_comercializador: body.es_comercializador || false,
+      comercializa: body.comercializa || null,
       rubro: body.rubro || null,
+      rubro_id: body.rubro_id || null,
+      tipo_comercio_id: body.tipo_comercio_id || null,
       fecha_alta: body.fecha_alta || getArgentinaDateString(),
       fecha_baja: body.fecha_baja || null,
       fecha_nacimiento: body.fecha_nacimiento || null,
@@ -89,8 +89,8 @@ export async function POST(request: NextRequest) {
       codigo_postal: body.codigo_postal || null,
       telefono_fijo: body.telefono_fijo || null,
       cuit: body.cuit,
-      habilitado: body.habilitado !== undefined ? body.habilitado : true,
-      status: body.status || 'Activo',
+      habilitado: body.habilitado || null,
+      tipo_socio: body.tipo_socio || 'Activo',
       fk_id_usuario: body.fk_id_usuario || null
     }
 

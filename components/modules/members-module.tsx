@@ -65,6 +65,7 @@ export function MembersModule() {
   const [migrating, setMigrating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searchRazonSocial, setSearchRazonSocial] = useState("")
+  const [searchNumero, setSearchNumero] = useState("")
   const [searchTipoSocio, setSearchTipoSocio] = useState("all")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
@@ -989,6 +990,19 @@ export function MembersModule() {
 
           {/* Filtros de búsqueda */}
           <div className="flex gap-4 mt-4">
+            <div className="w-48">
+              <Label htmlFor="search-numero">Buscar por Número</Label>
+              <Input
+                id="search-numero"
+                placeholder="Número de socio..."
+                value={searchNumero}
+                onChange={(e) => {
+                  setSearchNumero(e.target.value)
+                  setCurrentMembersPage(1)
+                }}
+                className="border-gray-300 focus:border-gray-400"
+              />
+            </div>
             <div className="w-64">
               <Label htmlFor="search-razon-social">Buscar por Razón Social</Label>
               <Input
@@ -1002,7 +1016,7 @@ export function MembersModule() {
                 className="border-gray-300 focus:border-gray-400"
               />
             </div>
-            <div className="w-64">
+            <div className="w-48">
               <Label htmlFor="search-tipo-socio">Filtrar por Tipo de Socio</Label>
               <Select
                 value={searchTipoSocio}
@@ -1055,9 +1069,10 @@ export function MembersModule() {
             <>
             {(() => {
               const filteredMembers = members.filter(member => {
-                const matchesRazonSocial = member.razon_social.toLowerCase().includes(searchRazonSocial.toLowerCase())
+                const matchesNumero = searchNumero === "" || member.id.toString().includes(searchNumero)
+                const matchesRazonSocial = searchRazonSocial === "" || member.razon_social.toLowerCase().includes(searchRazonSocial.toLowerCase())
                 const matchesTipoSocio = searchTipoSocio === "all" || searchTipoSocio === "" || member.tipo_socio === searchTipoSocio
-                return matchesRazonSocial && matchesTipoSocio
+                return matchesNumero && matchesRazonSocial && matchesTipoSocio
               })
 
               return (
@@ -1065,6 +1080,7 @@ export function MembersModule() {
                   <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Número</TableHead>
                   <TableHead>Nombre</TableHead>
                   <TableHead>Razón Social</TableHead>
                   <TableHead>Email</TableHead>
@@ -1080,7 +1096,8 @@ export function MembersModule() {
                   .slice((currentMembersPage - 1) * membersPerPage, currentMembersPage * membersPerPage)
                   .map((member) => (
                   <TableRow key={member.id}>
-                    <TableCell className="font-medium">{member.nombre_socio}</TableCell>
+                    <TableCell className="font-medium">{member.id}</TableCell>
+                    <TableCell>{member.nombre_socio}</TableCell>
                     <TableCell>{member.razon_social}</TableCell>
                     <TableCell>{member.mail}</TableCell>
                     <TableCell>{member.cuit}</TableCell>

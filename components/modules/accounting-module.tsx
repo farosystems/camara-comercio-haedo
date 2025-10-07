@@ -55,9 +55,9 @@ export function AccountingModule() {
   const selectedSocioInvoices = selectedSocioId ? invoices.filter(f => f.fk_id_socio === selectedSocioId) : []
   const selectedSocioPayments = selectedSocioId ? payments.filter(p => p.fk_id_socio === selectedSocioId) : []
 
-  // Calcular saldo actual del socio seleccionado
-  const currentBalance = selectedSocioMovements.length > 0 ?
-    selectedSocioMovements.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())[0]?.saldo || 0 : 0
+  // Calcular saldo actual del socio seleccionado - suma de saldos de cuotas pendientes y vencidas
+  const pendingAndOverdueMovements = selectedSocioMovements.filter(m => m.estado === 'Pendiente' || m.estado === 'Vencida')
+  const currentBalance = pendingAndOverdueMovements.reduce((sum, m) => sum + (m.saldo || 0), 0)
 
   // Filtrar socios para el selector
   const filteredAccounts = accounts.filter(account =>

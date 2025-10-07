@@ -62,8 +62,8 @@ export default function HomePage() {
 
   const routeMap: { [key: string]: string } = {
     'DASHBOARD': '/modules/dashboard',
-    'SOCIOS': '/modules/members',
-    'FACTURACION': '/modules/billing',
+    'SOCIOS': '/modules/members/list',
+    'FACTURACION': '/modules/billing/movements',
     'TESORERIA': '/modules/movements',
     'MOVIMIENTOS': '/modules/movements',
     'CAJAS': '/modules/cash-box',

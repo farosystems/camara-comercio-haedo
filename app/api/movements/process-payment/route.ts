@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 3. Actualizar el saldo del movimiento
+    // 3. Actualizar solo el saldo de la cuota que se está pagando
     const nuevoSaldo = movement.saldo - amount
     const nuevoEstado = nuevoSaldo <= 0 ? 'Cobrada' : movement.estado
 

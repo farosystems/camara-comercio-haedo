@@ -111,8 +111,8 @@ export function AccountsBillingModule() {
     // Filtro por estado
     let matchesStatus = true
     if (statusFilter !== "all") {
-      const memberMovements = movements.filter(m => m.fk_id_socio === member.id).sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
-      const currentBalance = memberMovements.length > 0 ? memberMovements[0].saldo : 0
+      const memberMovements = movements.filter(m => m.fk_id_socio === member.id && (m.estado === 'Pendiente' || m.estado === 'Vencida'))
+      const currentBalance = memberMovements.reduce((sum, m) => sum + (m.saldo || 0), 0)
 
       switch (statusFilter) {
         case "al-dia":
@@ -158,8 +158,9 @@ export function AccountsBillingModule() {
       // Obtener pagos del socio
       const memberPagos = pagos.filter(p => p.fk_id_socio === member.id).sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
 
-      // Calcular estadísticas
-      const currentBalance = memberMovements.length > 0 ? memberMovements[0].saldo : 0
+      // Calcular estadísticas - Saldo actual es la suma de saldos pendientes y vencidos
+      const pendingAndOverdueMovements = memberMovements.filter(m => m.estado === 'Pendiente' || m.estado === 'Vencida')
+      const currentBalance = pendingAndOverdueMovements.reduce((sum, m) => sum + (m.saldo || 0), 0)
       const totalCharges = memberMovements.filter(m => m.tipo === "Cargo").reduce((sum, m) => sum + m.monto, 0)
 
       // Calcular pagos usando la tabla pagos
@@ -614,7 +615,8 @@ export function AccountsBillingModule() {
               <TableBody>
                 {paginatedMembers.map((member) => {
                   const memberMovements = movements.filter(m => m.fk_id_socio === member.id).sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
-                  const currentBalance = memberMovements.length > 0 ? memberMovements[0].saldo : 0
+                  const pendingAndOverdueMovements = memberMovements.filter(m => m.estado === 'Pendiente' || m.estado === 'Vencida')
+                  const currentBalance = pendingAndOverdueMovements.reduce((sum, m) => sum + (m.saldo || 0), 0)
                   const pendingInvoices = facturas.filter(f => f.fk_id_socio === member.id && f.estado === "Pendiente")
                   const overdueMovements = memberMovements.filter(m => m.estado === "Vencida")
                   const lastPayment = movements.filter(m => m.fk_id_socio === member.id && m.tipo === "Pago").sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())[0]
@@ -758,7 +760,23 @@ export function AccountsBillingModule() {
                 // Calcular datos del socio
                 const memberMovements = movements.filter(m => m.fk_id_socio === selectedMemberForDetail.id).sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
                 const memberPagos = pagos.filter(p => p.fk_id_socio === selectedMemberForDetail.id).sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
-                const currentBalance = memberMovements.length > 0 ? memberMovements[0].saldo : 0
+                const pendingAndOverdueMovements = memberMovements.filter(m => m.estado === 'Pendiente' || m.estado === 'Vencida')
+
+                // Debug: ver los movimientos pendientes y vencidos
+                console.log('=== DEBUG SALDO ACTUAL ===')
+                console.log('Total movimientos del socio:', memberMovements.length)
+                console.log('Movimientos pendientes/vencidos:', pendingAndOverdueMovements.length)
+                console.log('Detalle de movimientos pendientes/vencidos:', pendingAndOverdueMovements.map(m => ({
+                  id: m.id,
+                  concepto: m.concepto,
+                  estado: m.estado,
+                  monto: m.monto,
+                  saldo: m.saldo
+                })))
+
+                const currentBalance = pendingAndOverdueMovements.reduce((sum, m) => sum + (m.saldo || 0), 0)
+                console.log('Saldo actual calculado:', currentBalance)
+                console.log('=========================')
                 const totalCharges = memberMovements.filter(m => m.tipo === "Cargo").reduce((sum, m) => sum + m.monto, 0)
                 const totalPayments = memberPagos.reduce((sum, p) => sum + p.monto, 0) // Calcular pagos de la tabla pagos
                 const pendingInvoices = facturas.filter(f => f.fk_id_socio === selectedMemberForDetail.id && f.estado === "Pendiente")

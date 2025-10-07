@@ -45,6 +45,7 @@ export function MembersListModule() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchRazonSocial, setSearchRazonSocial] = useState("")
+  const [searchNumero, setSearchNumero] = useState("")
   const [searchTipoSocio, setSearchTipoSocio] = useState("all")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -115,6 +116,10 @@ export function MembersListModule() {
   useEffect(() => {
     cargarDatos()
   }, [])
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData({...formData, [field]: value.toUpperCase()})
+  }
 
   const resetForm = () => {
     setFormData({
@@ -296,9 +301,10 @@ export function MembersListModule() {
   }
 
   const filteredMembers = members.filter(member => {
-    const matchesRazonSocial = member.razon_social.toLowerCase().includes(searchRazonSocial.toLowerCase())
+    const matchesNumero = searchNumero === "" || member.id.toString().includes(searchNumero)
+    const matchesRazonSocial = searchRazonSocial === "" || member.razon_social.toLowerCase().includes(searchRazonSocial.toLowerCase())
     const matchesTipoSocio = searchTipoSocio === "all" || searchTipoSocio === "" || member.tipo_socio === searchTipoSocio
-    return matchesRazonSocial && matchesTipoSocio
+    return matchesNumero && matchesRazonSocial && matchesTipoSocio
   })
 
   const paginatedMembers = filteredMembers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
@@ -342,7 +348,7 @@ export function MembersListModule() {
                     <Input
                       id="nombre_socio"
                       value={formData.nombre_socio}
-                      onChange={(e) => setFormData({...formData, nombre_socio: e.target.value})}
+                      onChange={(e) => handleInputChange('nombre_socio', e.target.value)}
                       className={errors.nombre_socio ? "border-red-500" : ""}
                     />
                     {errors.nombre_socio && <p className="text-sm text-red-500">{errors.nombre_socio}</p>}
@@ -353,7 +359,7 @@ export function MembersListModule() {
                     <Input
                       id="razon_social"
                       value={formData.razon_social}
-                      onChange={(e) => setFormData({...formData, razon_social: e.target.value})}
+                      onChange={(e) => handleInputChange('razon_social', e.target.value)}
                       className={errors.razon_social ? "border-red-500" : ""}
                     />
                     {errors.razon_social && <p className="text-sm text-red-500">{errors.razon_social}</p>}
@@ -364,7 +370,7 @@ export function MembersListModule() {
                     <Input
                       id="nombre_fantasia"
                       value={formData.nombre_fantasia}
-                      onChange={(e) => setFormData({...formData, nombre_fantasia: e.target.value})}
+                      onChange={(e) => handleInputChange('nombre_fantasia', e.target.value)}
                     />
                   </div>
 
@@ -373,7 +379,7 @@ export function MembersListModule() {
                     <Input
                       id="cuit"
                       value={formData.cuit}
-                      onChange={(e) => setFormData({...formData, cuit: e.target.value})}
+                      onChange={(e) => handleInputChange('cuit', e.target.value)}
                       className={errors.cuit ? "border-red-500" : ""}
                     />
                     {errors.cuit && <p className="text-sm text-red-500">{errors.cuit}</p>}
@@ -384,7 +390,7 @@ export function MembersListModule() {
                     <Input
                       id="documento"
                       value={formData.documento}
-                      onChange={(e) => setFormData({...formData, documento: e.target.value})}
+                      onChange={(e) => handleInputChange('documento', e.target.value)}
                       className={errors.documento ? "border-red-500" : ""}
                     />
                     {errors.documento && <p className="text-sm text-red-500">{errors.documento}</p>}
@@ -395,7 +401,7 @@ export function MembersListModule() {
                     <Input
                       id="nacionalidad"
                       value={formData.nacionalidad}
-                      onChange={(e) => setFormData({...formData, nacionalidad: e.target.value})}
+                      onChange={(e) => handleInputChange('nacionalidad', e.target.value)}
                     />
                   </div>
                 </div>
@@ -409,7 +415,7 @@ export function MembersListModule() {
                     <Input
                       id="domicilio_comercial"
                       value={formData.domicilio_comercial}
-                      onChange={(e) => setFormData({...formData, domicilio_comercial: e.target.value})}
+                      onChange={(e) => handleInputChange('domicilio_comercial', e.target.value)}
                       className={errors.domicilio_comercial ? "border-red-500" : ""}
                     />
                     {errors.domicilio_comercial && <p className="text-sm text-red-500">{errors.domicilio_comercial}</p>}
@@ -420,7 +426,7 @@ export function MembersListModule() {
                     <Input
                       id="nro_comercial"
                       value={formData.nro_comercial}
-                      onChange={(e) => setFormData({...formData, nro_comercial: e.target.value})}
+                      onChange={(e) => handleInputChange('nro_comercial', e.target.value)}
                     />
                   </div>
 
@@ -430,7 +436,7 @@ export function MembersListModule() {
                       id="mail"
                       type="email"
                       value={formData.mail}
-                      onChange={(e) => setFormData({...formData, mail: e.target.value})}
+                      onChange={(e) => handleInputChange('mail', e.target.value)}
                       className={errors.mail ? "border-red-500" : ""}
                     />
                     {errors.mail && <p className="text-sm text-red-500">{errors.mail}</p>}
@@ -441,7 +447,7 @@ export function MembersListModule() {
                     <Input
                       id="telefono_comercial"
                       value={formData.telefono_comercial}
-                      onChange={(e) => setFormData({...formData, telefono_comercial: e.target.value})}
+                      onChange={(e) => handleInputChange('telefono_comercial', e.target.value)}
                     />
                   </div>
 
@@ -450,7 +456,7 @@ export function MembersListModule() {
                     <Input
                       id="celular"
                       value={formData.celular}
-                      onChange={(e) => setFormData({...formData, celular: e.target.value})}
+                      onChange={(e) => handleInputChange('celular', e.target.value)}
                     />
                   </div>
 
@@ -459,7 +465,7 @@ export function MembersListModule() {
                     <Input
                       id="telefono_fijo"
                       value={formData.telefono_fijo}
-                      onChange={(e) => setFormData({...formData, telefono_fijo: e.target.value})}
+                      onChange={(e) => handleInputChange('telefono_fijo', e.target.value)}
                     />
                   </div>
                 </div>
@@ -502,7 +508,7 @@ export function MembersListModule() {
                     <Input
                       id="domicilio_personal"
                       value={formData.domicilio_personal}
-                      onChange={(e) => setFormData({...formData, domicilio_personal: e.target.value})}
+                      onChange={(e) => handleInputChange('domicilio_personal', e.target.value)}
                     />
                   </div>
 
@@ -511,7 +517,7 @@ export function MembersListModule() {
                     <Input
                       id="nro_personal"
                       value={formData.nro_personal}
-                      onChange={(e) => setFormData({...formData, nro_personal: e.target.value})}
+                      onChange={(e) => handleInputChange('nro_personal', e.target.value)}
                     />
                   </div>
 
@@ -520,7 +526,7 @@ export function MembersListModule() {
                     <Input
                       id="localidad"
                       value={formData.localidad}
-                      onChange={(e) => setFormData({...formData, localidad: e.target.value})}
+                      onChange={(e) => handleInputChange('localidad', e.target.value)}
                     />
                   </div>
 
@@ -529,7 +535,7 @@ export function MembersListModule() {
                     <Input
                       id="codigo_postal"
                       value={formData.codigo_postal}
-                      onChange={(e) => setFormData({...formData, codigo_postal: e.target.value})}
+                      onChange={(e) => handleInputChange('codigo_postal', e.target.value)}
                     />
                   </div>
                 </div>
@@ -615,7 +621,7 @@ export function MembersListModule() {
                     <Input
                       id="habilitado"
                       value={formData.habilitado}
-                      onChange={(e) => setFormData({...formData, habilitado: e.target.value})}
+                      onChange={(e) => handleInputChange('habilitado', e.target.value)}
                     />
                   </div>
                 </div>
@@ -627,7 +633,7 @@ export function MembersListModule() {
                 <X className="mr-2 h-4 w-4" />
                 Cancelar
               </Button>
-              <Button onClick={handleSubmit} disabled={saving}>
+              <Button onClick={handleSubmit} disabled={saving} className="bg-black hover:bg-gray-800 text-white">
                 <Save className="mr-2 h-4 w-4" />
                 {saving ? "Guardando..." : "Crear Socio"}
               </Button>
@@ -644,6 +650,19 @@ export function MembersListModule() {
 
           {/* Filtros de búsqueda */}
           <div className="flex gap-4 mt-4">
+            <div className="w-48">
+              <Label htmlFor="search-numero">Buscar por Número</Label>
+              <Input
+                id="search-numero"
+                placeholder="Número de socio..."
+                value={searchNumero}
+                onChange={(e) => {
+                  setSearchNumero(e.target.value)
+                  setCurrentPage(1)
+                }}
+                className="border-gray-300 focus:border-gray-400"
+              />
+            </div>
             <div className="w-64">
               <Label htmlFor="search-razon-social">Buscar por Razón Social</Label>
               <Input
@@ -657,7 +676,7 @@ export function MembersListModule() {
                 className="border-gray-300 focus:border-gray-400"
               />
             </div>
-            <div className="w-64">
+            <div className="w-48">
               <Label htmlFor="search-tipo-socio">Filtrar por Tipo de Socio</Label>
               <Select
                 value={searchTipoSocio}
@@ -711,6 +730,7 @@ export function MembersListModule() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Número</TableHead>
                     <TableHead>Nombre</TableHead>
                     <TableHead>Razón Social</TableHead>
                     <TableHead>Email</TableHead>
@@ -723,7 +743,8 @@ export function MembersListModule() {
                 <TableBody>
                   {paginatedMembers.map((member) => (
                     <TableRow key={member.id}>
-                      <TableCell className="font-medium">{member.nombre_socio}</TableCell>
+                      <TableCell className="font-medium">{member.id}</TableCell>
+                      <TableCell>{member.nombre_socio}</TableCell>
                       <TableCell>{member.razon_social}</TableCell>
                       <TableCell>{member.mail}</TableCell>
                       <TableCell>{member.cuit}</TableCell>

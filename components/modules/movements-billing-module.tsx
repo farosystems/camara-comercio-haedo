@@ -50,6 +50,7 @@ export function MovementsBillingModule() {
 
   // Estados para filtros
   const [memberSearch, setMemberSearch] = useState("")
+  const [socioIdSearch, setSocioIdSearch] = useState("")
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
 
@@ -103,6 +104,10 @@ export function MovementsBillingModule() {
   const [exportOption, setExportOption] = useState<"todas" | "vencidas" | "vencidas_fecha">("todas")
   const [exportFechaVencimiento, setExportFechaVencimiento] = useState("")
   const [isExporting, setIsExporting] = useState(false)
+
+  // Estados para paginación
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 20
 
   // Cargar datos desde Supabase
   useEffect(() => {
@@ -187,10 +192,12 @@ export function MovementsBillingModule() {
 
   // Filtrar movimientos según los criterios seleccionados
   const filteredMovements = movements.filter(movement => {
-    // Filtro por socio (búsqueda por razón social)
+    // Filtro por socio (búsqueda por razón social o ID)
     const member = members.find(m => m.id === movement.fk_id_socio)
     const memberName = member?.razon_social || ''
-    const matchesMember = memberSearch === "" || memberName.toLowerCase().includes(memberSearch.toLowerCase())
+    const matchesMemberName = memberSearch === "" || memberName.toLowerCase().includes(memberSearch.toLowerCase())
+    const matchesSocioId = socioIdSearch === "" || movement.fk_id_socio.toString().includes(socioIdSearch)
+    const matchesMember = matchesMemberName && matchesSocioId
 
     // Filtro por concepto
     if (filtroConcepto !== 0 && movement.fk_id_cargo !== filtroConcepto) {
@@ -236,6 +243,13 @@ export function MovementsBillingModule() {
 
     return matchesMember
   })
+
+  // Paginación
+  const paginatedMovements = filteredMovements.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  )
+  const totalPages = Math.ceil(filteredMovements.length / itemsPerPage)
 
   // Filtrar miembros para el modal según búsqueda y tipo
   const filteredModalMembers = members.filter(member => {
@@ -905,17 +919,34 @@ export function MovementsBillingModule() {
           {/* Filtros Avanzados */}
           <div className="mt-4 space-y-4">
             {/* Primera fila: Búsqueda de socio */}
-            <div className="w-full md:w-96">
-              <Label htmlFor="member-search">Buscar Socio</Label>
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <div className="flex gap-4">
+              <div className="w-48">
+                <Label htmlFor="socio-id-search">ID de Socio</Label>
                 <Input
-                  id="member-search"
-                  placeholder="Buscar por razón social..."
-                  value={memberSearch}
-                  onChange={(e) => setMemberSearch(e.target.value)}
-                  className="pl-8"
+                  id="socio-id-search"
+                  placeholder="Número de socio..."
+                  value={socioIdSearch}
+                  onChange={(e) => {
+                    setSocioIdSearch(e.target.value)
+                    setCurrentPage(1)
+                  }}
                 />
+              </div>
+              <div className="w-64">
+                <Label htmlFor="member-search">Razón Social</Label>
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="member-search"
+                    placeholder="Razón social..."
+                    value={memberSearch}
+                    onChange={(e) => {
+                      setMemberSearch(e.target.value)
+                      setCurrentPage(1)
+                    }}
+                    className="pl-8"
+                  />
+                </div>
               </div>
             </div>
 
@@ -924,7 +955,10 @@ export function MovementsBillingModule() {
               {/* Filtro por Concepto */}
               <div className="space-y-2">
                 <Label htmlFor="filtro_concepto">Concepto</Label>
-                <Select value={filtroConcepto.toString()} onValueChange={(value) => setFiltroConcepto(parseInt(value))}>
+                <Select value={filtroConcepto.toString()} onValueChange={(value) => {
+                  setFiltroConcepto(parseInt(value))
+                  setCurrentPage(1)
+                }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
@@ -942,7 +976,10 @@ export function MovementsBillingModule() {
               {/* Filtro por Estado */}
               <div className="space-y-2">
                 <Label htmlFor="filtro_estado">Estado</Label>
-                <Select value={filtroEstado} onValueChange={setFiltroEstado}>
+                <Select value={filtroEstado} onValueChange={(value) => {
+                  setFiltroEstado(value)
+                  setCurrentPage(1)
+                }}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -1049,6 +1086,7 @@ export function MovementsBillingModule() {
               <p className="mt-2 text-muted-foreground">Cargando cuotas pendientes...</p>
             </div>
           ) : (
+            <>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1064,7 +1102,7 @@ export function MovementsBillingModule() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredMovements.map((movement) => (
+                {paginatedMovements.map((movement) => (
                   <TableRow key={movement.id}>
                     <TableCell>{formatDateForDisplay(movement.fecha)}</TableCell>
                     <TableCell className="font-medium">
@@ -1188,6 +1226,37 @@ export function MovementsBillingModule() {
                 ))}
               </TableBody>
             </Table>
+
+            {/* Paginación */}
+            {filteredMovements.length > 0 && (
+              <div className="flex items-center justify-between px-2 py-4">
+                <div className="text-sm text-muted-foreground">
+                  Mostrando {Math.min((currentPage - 1) * itemsPerPage + 1, filteredMovements.length)} a {Math.min(currentPage * itemsPerPage, filteredMovements.length)} de {filteredMovements.length} cuotas
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Anterior
+                  </Button>
+                  <div className="text-sm">
+                    Página {currentPage} de {totalPages}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Siguiente
+                  </Button>
+                </div>
+              </div>
+            )}
+            </>
           )}
         </CardContent>
       </Card>

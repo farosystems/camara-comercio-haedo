@@ -94,42 +94,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Actualizar los saldos para cada socio
-    for (const socio of socios) {
-      // Obtener todos los movimientos del socio ordenados por fecha
-      const { data: allMovements, error: movementsError } = await supabase
+    // Actualizar los saldos para cada cuota recién creada
+    // Cada cuota tiene su saldo independiente = monto
+    for (const insertedMovement of insertedMovements) {
+      await supabase
         .from('movimientos_socios')
-        .select('*')
-        .eq('fk_id_socio', socio.id)
-        .order('fecha', { ascending: true })
-        .order('created_at', { ascending: true })
-
-      if (movementsError) {
-        console.error('Error obteniendo movimientos:', movementsError)
-        continue
-      }
-
-      // Calcular saldos acumulativos
-      let saldoAcumulado = 0
-      const movimientosConSaldo = allMovements.map(movement => {
-        if (movement.tipo === 'Cargo') {
-          saldoAcumulado += movement.monto
-        } else if (movement.tipo === 'Pago') {
-          saldoAcumulado -= movement.monto
-        }
-        return {
-          ...movement,
-          saldo: saldoAcumulado
-        }
-      })
-
-      // Actualizar todos los movimientos con los saldos correctos
-      for (const movement of movimientosConSaldo) {
-        await supabase
-          .from('movimientos_socios')
-          .update({ saldo: movement.saldo })
-          .eq('id', movement.id)
-      }
+        .update({ saldo: insertedMovement.monto })
+        .eq('id', insertedMovement.id)
     }
 
     // Contar cuotas por estado
