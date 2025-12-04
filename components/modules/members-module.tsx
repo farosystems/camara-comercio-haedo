@@ -1069,7 +1069,7 @@ export function MembersModule() {
             <>
             {(() => {
               const filteredMembers = members.filter(member => {
-                const matchesNumero = searchNumero === "" || member.id.toString().includes(searchNumero)
+                const matchesNumero = searchNumero === "" || (member.nro_socio && member.nro_socio.includes(searchNumero))
                 const matchesRazonSocial = searchRazonSocial === "" || member.razon_social.toLowerCase().includes(searchRazonSocial.toLowerCase())
                 const matchesTipoSocio = searchTipoSocio === "all" || searchTipoSocio === "" || member.tipo_socio === searchTipoSocio
                 return matchesNumero && matchesRazonSocial && matchesTipoSocio
@@ -1096,7 +1096,7 @@ export function MembersModule() {
                   .slice((currentMembersPage - 1) * membersPerPage, currentMembersPage * membersPerPage)
                   .map((member) => (
                   <TableRow key={member.id}>
-                    <TableCell className="font-medium">{member.id}</TableCell>
+                    <TableCell className="font-medium">{member.nro_socio || '-'}</TableCell>
                     <TableCell>{member.nombre_socio}</TableCell>
                     <TableCell>{member.razon_social}</TableCell>
                     <TableCell>{member.mail}</TableCell>
@@ -1779,6 +1779,7 @@ export function MembersModule() {
               <h4 className="font-medium text-sm mb-2">Columnas requeridas en el archivo:</h4>
               <div className="text-xs text-gray-600 space-y-1">
                 <div className="grid grid-cols-2 gap-2">
+                  <div>• nro_socio (opcional)</div>
                   <div>• nombre_socio</div>
                   <div>• tipo_socio</div>
                   <div>• razon_social</div>
@@ -1806,7 +1807,7 @@ export function MembersModule() {
                 </div>
               </div>
               <p className="text-xs text-blue-600 mt-2">
-                Nota: Los campos 'rubro' y 'comercializa' deben contener los nombres exactos de las tablas de referencia.
+                Nota: El campo 'nro_socio' es opcional. Si se incluye en el Excel, se mantendrá el número de socio de la base anterior. Los campos 'rubro' y 'comercializa' deben contener los nombres exactos de las tablas de referencia.
               </p>
             </div>
           </div>

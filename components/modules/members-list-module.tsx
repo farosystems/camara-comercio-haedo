@@ -301,7 +301,7 @@ export function MembersListModule() {
   }
 
   const filteredMembers = members.filter(member => {
-    const matchesNumero = searchNumero === "" || member.id.toString().includes(searchNumero)
+    const matchesNumero = searchNumero === "" || (member.nro_socio && member.nro_socio.includes(searchNumero))
     const matchesRazonSocial = searchRazonSocial === "" || member.razon_social.toLowerCase().includes(searchRazonSocial.toLowerCase())
     const matchesTipoSocio = searchTipoSocio === "all" || searchTipoSocio === "" || member.tipo_socio === searchTipoSocio
     return matchesNumero && matchesRazonSocial && matchesTipoSocio
@@ -743,7 +743,7 @@ export function MembersListModule() {
                 <TableBody>
                   {paginatedMembers.map((member) => (
                     <TableRow key={member.id}>
-                      <TableCell className="font-medium">{member.id}</TableCell>
+                      <TableCell className="font-medium">{member.nro_socio || '-'}</TableCell>
                       <TableCell>{member.nombre_socio}</TableCell>
                       <TableCell>{member.razon_social}</TableCell>
                       <TableCell>{member.mail}</TableCell>

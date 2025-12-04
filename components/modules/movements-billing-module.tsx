@@ -192,11 +192,11 @@ export function MovementsBillingModule() {
 
   // Filtrar movimientos según los criterios seleccionados
   const filteredMovements = movements.filter(movement => {
-    // Filtro por socio (búsqueda por razón social o ID)
+    // Filtro por socio (búsqueda por razón social o número de socio)
     const member = members.find(m => m.id === movement.fk_id_socio)
     const memberName = member?.razon_social || ''
     const matchesMemberName = memberSearch === "" || memberName.toLowerCase().includes(memberSearch.toLowerCase())
-    const matchesSocioId = socioIdSearch === "" || movement.fk_id_socio.toString().includes(socioIdSearch)
+    const matchesSocioId = socioIdSearch === "" || (member?.nro_socio && member.nro_socio.includes(socioIdSearch))
     const matchesMember = matchesMemberName && matchesSocioId
 
     // Filtro por concepto
@@ -921,7 +921,7 @@ export function MovementsBillingModule() {
             {/* Primera fila: Búsqueda de socio */}
             <div className="flex gap-4">
               <div className="w-48">
-                <Label htmlFor="socio-id-search">ID de Socio</Label>
+                <Label htmlFor="socio-id-search">Número de Socio</Label>
                 <Input
                   id="socio-id-search"
                   placeholder="Número de socio..."

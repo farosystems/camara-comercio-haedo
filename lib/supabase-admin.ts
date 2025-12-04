@@ -165,6 +165,7 @@ export async function actualizarUsuario(id: number, userData: Partial<Usuario>) 
 
 export interface Socio {
   id: number
+  nro_socio: string | null
   nombre_socio: string
   razon_social: string
   nombre_fantasia: string | null
@@ -203,9 +204,18 @@ export async function getSocios(): Promise<Socio[]> {
     .from('socios')
     .select('*')
     .order('nombre_socio')
-  
+
   if (error) throw error
-  return data || []
+
+  // Filtrar en el cliente registros vacíos o inválidos
+  const validSocios = (data || []).filter(socio =>
+    socio.nombre_socio &&
+    socio.nombre_socio.trim() !== '' &&
+    socio.razon_social &&
+    socio.razon_social.trim() !== ''
+  )
+
+  return validSocios
 }
 
 export async function crearSocio(socioData: Omit<Socio, 'id' | 'created_at' | 'updated_at'>) {

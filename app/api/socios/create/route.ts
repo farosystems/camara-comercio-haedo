@@ -19,6 +19,32 @@ export async function POST(request: NextRequest) {
 
     const supabase = createClient()
 
+    // Generar el próximo número de socio (mayor + 1)
+    let nro_socio = '1'
+
+    // Obtener todos los nro_socio para calcular el máximo correctamente
+    const { data: allSocios, error: maxError } = await supabase
+      .from('socios')
+      .select('nro_socio')
+      .not('nro_socio', 'is', null)
+
+    if (maxError) {
+      console.error('Error obteniendo nro_socio:', maxError)
+      // Si hay error, continuamos con 1
+    }
+
+    if (allSocios && allSocios.length > 0) {
+      // Encontrar el mayor número convirtiendo a entero
+      const numeros = allSocios
+        .map(s => parseInt(s.nro_socio, 10))
+        .filter(n => !isNaN(n))
+
+      if (numeros.length > 0) {
+        const maxNumero = Math.max(...numeros)
+        nro_socio = (maxNumero + 1).toString()
+      }
+    }
+
     // Verificar que el CUIT no esté duplicado
     const { data: existingCuit, error: cuitError } = await supabase
       .from('socios')
@@ -65,6 +91,7 @@ export async function POST(request: NextRequest) {
 
     // Preparar datos del socio
     const socioData = {
+      nro_socio: nro_socio,
       nombre_socio: body.nombre_socio,
       razon_social: body.razon_social,
       nombre_fantasia: body.nombre_fantasia || null,

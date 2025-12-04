@@ -176,6 +176,7 @@ export async function POST(request: NextRequest) {
         }
 
         const socio = {
+          nro_socio: row.nro_socio?.toString().trim() || null,
           nombre_socio: row.nombre_socio?.toString().trim() || '',
           tipo_socio: row.tipo_socio?.toString().trim() || 'Activo',
           razon_social: row.razon_social?.toString().trim() || '',

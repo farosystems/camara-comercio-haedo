@@ -62,7 +62,8 @@ export function AccountingModule() {
   // Filtrar socios para el selector
   const filteredAccounts = accounts.filter(account =>
     account.razon_social.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    account.cuit.includes(searchTerm)
+    (account.cuit && account.cuit.includes(searchTerm)) ||
+    (account.nro_socio && account.nro_socio.includes(searchTerm))
   )
 
   // Cargar datos desde Supabase
