@@ -15,7 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Edit, Trash2, Eye, User, Save, X } from "lucide-react"
+import { Plus, Edit, Trash2, Eye, User, Save, X, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -67,6 +67,8 @@ export function MembersModule() {
   const [searchRazonSocial, setSearchRazonSocial] = useState("")
   const [searchNumero, setSearchNumero] = useState("")
   const [searchTipoSocio, setSearchTipoSocio] = useState("all")
+  const [sortBy, setSortBy] = useState<'numero' | 'nombre_socio' | 'razon_social' | 'mail' | 'cuit' | 'tipo_socio' | 'fecha_alta' | 'fecha_baja'>('numero')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -143,6 +145,13 @@ export function MembersModule() {
       setLoading(false)
     }
   }
+
+  // Cargar datos al montar el componente
+  useEffect(() => {
+    cargarDatos()
+    cargarRubros()
+    cargarTiposComercio()
+  }, [])
 
   // Función para cargar usuarios con rol "socio"
   const cargarUsuarios = async () => {
@@ -1077,26 +1086,102 @@ export function MembersModule() {
           ) : (
             <>
             {(() => {
-              const filteredMembers = members.filter(member => {
-                const matchesNumero = searchNumero === "" || (member.nro_socio && member.nro_socio.includes(searchNumero))
-                const matchesRazonSocial = searchRazonSocial === "" || member.razon_social.toLowerCase().includes(searchRazonSocial.toLowerCase())
-                const matchesTipoSocio = searchTipoSocio === "all" || searchTipoSocio === "" || member.tipo_socio === searchTipoSocio
-                return matchesNumero && matchesRazonSocial && matchesTipoSocio
-              })
+              const handleSort = (column: 'numero' | 'nombre_socio' | 'razon_social' | 'mail' | 'cuit' | 'tipo_socio' | 'fecha_alta' | 'fecha_baja') => {
+                if (sortBy === column) {
+                  setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+                } else {
+                  setSortBy(column)
+                  setSortOrder('asc')
+                }
+              }
+
+              const getSortIcon = (column: 'numero' | 'nombre_socio' | 'razon_social' | 'mail' | 'cuit' | 'tipo_socio' | 'fecha_alta' | 'fecha_baja') => {
+                if (sortBy !== column) return <ArrowUpDown className="ml-2 h-4 w-4" />
+                return sortOrder === 'asc' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
+              }
+
+              const filteredMembers = members
+                .filter(member => {
+                  const matchesNumero = searchNumero === "" || (member.nro_socio && member.nro_socio.includes(searchNumero))
+                  const matchesRazonSocial = searchRazonSocial === "" || member.razon_social.toLowerCase().includes(searchRazonSocial.toLowerCase())
+                  const matchesTipoSocio = searchTipoSocio === "all" || searchTipoSocio === "" || member.tipo_socio === searchTipoSocio
+                  return matchesNumero && matchesRazonSocial && matchesTipoSocio
+                })
+                .sort((a, b) => {
+                  let compareValue = 0
+
+                  if (sortBy === 'numero') {
+                    const numA = parseInt(a.nro_socio || '0')
+                    const numB = parseInt(b.nro_socio || '0')
+                    compareValue = numA - numB
+                  } else if (sortBy === 'nombre_socio') {
+                    compareValue = (a.nombre_socio || '').localeCompare(b.nombre_socio || '')
+                  } else if (sortBy === 'razon_social') {
+                    compareValue = (a.razon_social || '').localeCompare(b.razon_social || '')
+                  } else if (sortBy === 'mail') {
+                    compareValue = (a.mail || '').localeCompare(b.mail || '')
+                  } else if (sortBy === 'cuit') {
+                    compareValue = (a.cuit || '').localeCompare(b.cuit || '')
+                  } else if (sortBy === 'tipo_socio') {
+                    compareValue = (a.tipo_socio || '').localeCompare(b.tipo_socio || '')
+                  } else if (sortBy === 'fecha_alta') {
+                    const dateA = new Date(a.fecha_alta || 0).getTime()
+                    const dateB = new Date(b.fecha_alta || 0).getTime()
+                    compareValue = dateA - dateB
+                  } else if (sortBy === 'fecha_baja') {
+                    const dateA = new Date(a.fecha_baja || 0).getTime()
+                    const dateB = new Date(b.fecha_baja || 0).getTime()
+                    compareValue = dateA - dateB
+                  }
+
+                  return sortOrder === 'asc' ? compareValue : -compareValue
+                })
 
               return (
                 <>
                   <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Número</TableHead>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Razón Social</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>CUIT</TableHead>
-                  <TableHead>Tipo de Socio</TableHead>
-                  <TableHead>Fecha Alta</TableHead>
-                  <TableHead>Fecha Baja</TableHead>
+                  <TableHead className="cursor-pointer" onClick={() => handleSort('numero')}>
+                    <div className="flex items-center gap-1 hover:text-gray-900">
+                      Número {getSortIcon('numero')}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer" onClick={() => handleSort('nombre_socio')}>
+                    <div className="flex items-center gap-1 hover:text-gray-900">
+                      Nombre {getSortIcon('nombre_socio')}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer" onClick={() => handleSort('razon_social')}>
+                    <div className="flex items-center gap-1 hover:text-gray-900">
+                      Razón Social {getSortIcon('razon_social')}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer" onClick={() => handleSort('mail')}>
+                    <div className="flex items-center gap-1 hover:text-gray-900">
+                      Email {getSortIcon('mail')}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer" onClick={() => handleSort('cuit')}>
+                    <div className="flex items-center gap-1 hover:text-gray-900">
+                      CUIT {getSortIcon('cuit')}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer" onClick={() => handleSort('tipo_socio')}>
+                    <div className="flex items-center gap-1 hover:text-gray-900">
+                      Tipo de Socio {getSortIcon('tipo_socio')}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer" onClick={() => handleSort('fecha_alta')}>
+                    <div className="flex items-center gap-1 hover:text-gray-900">
+                      Fecha Alta {getSortIcon('fecha_alta')}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer" onClick={() => handleSort('fecha_baja')}>
+                    <div className="flex items-center gap-1 hover:text-gray-900">
+                      Fecha Baja {getSortIcon('fecha_baja')}
+                    </div>
+                  </TableHead>
                   <TableHead>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
