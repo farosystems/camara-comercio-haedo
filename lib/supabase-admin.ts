@@ -173,26 +173,23 @@ export interface Socio {
   nro_comercial: string | null
   telefono_comercial: string | null
   celular: string | null
-  mail: string
-  comercializa: boolean
-  quiero_comercializar: boolean
-  es_comercializador: boolean
-  rubro: string | null
-  fecha_alta: string
+  mail: string | null
+  rubro_id: number | null
+  tipo_comercio_id: number | null
+  fecha_alta: string | null
   fecha_baja: string | null
-  tipo_socio: 'Activo' | 'Adherente' | 'Vitalicio'
+  tipo_socio: string | null
   fecha_nacimiento: string | null
-  documento: string
+  documento: string | null
   estado_civil: string | null
-  nacionalidad: string
+  nacionalidad: string | null
   domicilio_personal: string | null
   nro_personal: string | null
   localidad: string | null
   codigo_postal: string | null
   telefono_fijo: string | null
-  cuit: string
-  habilitado: boolean
-  status: string
+  cuit: string | null
+  habilitado: string | null
   fk_id_usuario: number | null
   created_at: string
   updated_at: string
@@ -207,15 +204,7 @@ export async function getSocios(): Promise<Socio[]> {
 
   if (error) throw error
 
-  // Filtrar en el cliente registros vacíos o inválidos
-  const validSocios = (data || []).filter(socio =>
-    socio.nombre_socio &&
-    socio.nombre_socio.trim() !== '' &&
-    socio.razon_social &&
-    socio.razon_social.trim() !== ''
-  )
-
-  return validSocios
+  return data || []
 }
 
 export async function crearSocio(socioData: Omit<Socio, 'id' | 'created_at' | 'updated_at'>) {

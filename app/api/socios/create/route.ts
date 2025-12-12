@@ -100,8 +100,6 @@ export async function POST(request: NextRequest) {
       telefono_comercial: body.telefono_comercial || null,
       celular: body.celular || null,
       mail: body.mail,
-      comercializa: body.comercializa || null,
-      rubro: body.rubro || null,
       rubro_id: body.rubro_id || null,
       tipo_comercio_id: body.tipo_comercio_id || null,
       fecha_alta: body.fecha_alta || getArgentinaDateString(),

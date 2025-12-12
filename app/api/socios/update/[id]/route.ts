@@ -99,10 +99,8 @@ export async function PUT(
       telefono_comercial: body.telefono_comercial || null,
       celular: body.celular || null,
       mail: body.mail,
-      comercializa: body.comercializa || false,
-      quiero_comercializar: body.quiero_comercializar || false,
-      es_comercializador: body.es_comercializador || false,
-      rubro: body.rubro || null,
+      rubro_id: body.rubro_id || null,
+      tipo_comercio_id: body.tipo_comercio_id || null,
       fecha_alta: body.fecha_alta,
       fecha_baja: body.fecha_baja || null,
       fecha_nacimiento: body.fecha_nacimiento || null,
@@ -115,8 +113,8 @@ export async function PUT(
       codigo_postal: body.codigo_postal || null,
       telefono_fijo: body.telefono_fijo || null,
       cuit: body.cuit,
-      habilitado: body.habilitado !== undefined ? body.habilitado : true,
-      status: body.status || 'Activo',
+      habilitado: body.habilitado || null,
+      tipo_socio: body.tipo_socio || 'Activo',
       fk_id_usuario: body.fk_id_usuario || null,
       updated_at: new Date().toISOString()
     }
@@ -124,7 +122,7 @@ export async function PUT(
     // Actualizar el socio en la base de datos
     const { data: socio, error: updateError } = await supabase
       .from('socios')
-      .update(socioData)
+      .update(socioData as any)
       .eq('id', socioId)
       .select()
       .single()

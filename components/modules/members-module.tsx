@@ -277,27 +277,19 @@ export function MembersModule() {
 
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {}
-    
+
     // Validaciones obligatorias
-    if (!formData.nombre_socio.trim()) {
+    if (!formData.nombre_socio || !formData.nombre_socio.trim()) {
       newErrors.nombre_socio = "El nombre del socio es obligatorio"
     }
-    if (!formData.razon_social.trim()) {
+    if (!formData.razon_social || !formData.razon_social.trim()) {
       newErrors.razon_social = "La razón social es obligatoria"
     }
-    if (!formData.domicilio_comercial.trim()) {
+    if (!formData.domicilio_comercial || !formData.domicilio_comercial.trim()) {
       newErrors.domicilio_comercial = "El domicilio comercial es obligatorio"
     }
-    if (!formData.mail.trim()) {
-      newErrors.mail = "El email es obligatorio"
-    } else if (!/\S+@\S+\.\S+/.test(formData.mail)) {
+    if (formData.mail && formData.mail.trim() && !/\S+@\S+\.\S+/.test(formData.mail)) {
       newErrors.mail = "El email no es válido"
-    }
-    if (!formData.documento.trim()) {
-      newErrors.documento = "El documento es obligatorio"
-    }
-    if (!formData.cuit.trim()) {
-      newErrors.cuit = "El CUIT es obligatorio"
     }
 
     // Validar contraseña si se va a crear usuario
@@ -404,7 +396,23 @@ export function MembersModule() {
   }
 
   const handleUpdate = async () => {
-    if (!validateForm() || !selectedMember) return
+    if (!selectedMember) {
+      toast({
+        title: "Error",
+        description: "No hay un socio seleccionado",
+        variant: "destructive"
+      })
+      return
+    }
+
+    if (!validateForm()) {
+      toast({
+        title: "Error de validación",
+        description: "Por favor corrige los errores en el formulario",
+        variant: "destructive"
+      })
+      return
+    }
 
     try {
       setSaving(true)
@@ -429,8 +437,9 @@ export function MembersModule() {
 
       setIsEditDialogOpen(false)
       setSelectedMember(null)
+      resetForm()
       cargarDatos()
-      
+
     } catch (error: any) {
       console.error('Error actualizando socio:', error)
       toast({
