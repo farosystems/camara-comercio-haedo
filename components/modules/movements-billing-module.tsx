@@ -253,6 +253,11 @@ export function MovementsBillingModule() {
 
   // Filtrar miembros para el modal según búsqueda y tipo
   const filteredModalMembers = members.filter(member => {
+    // Excluir socios inactivos
+    if (member.tipo_socio === 'Inactivo') {
+      return false
+    }
+
     const matchesSearch = modalMemberSearch === "" ||
       member.razon_social.toLowerCase().includes(modalMemberSearch.toLowerCase())
 
