@@ -141,15 +141,13 @@ export async function POST(request: NextRequest) {
     const movimientoCajaData = {
       fk_id_cuenta: cuentaDestinoId, // Usar la cuenta destino seleccionada
       fecha: getArgentinaDateString(),
-      concepto_ingreso: `Pago de cuota - ${movement.concepto}`,
       apellido_nombres: null, // Se puede obtener del socio si es necesario
-      fk_id_proveedor: null,
       numero_comprobante: reference || null,
-      nota: `Pago procesado por ${usuario.nombre}`,
-      fk_id_concepto: 3, // ID = 3 como especificado
+      nota: `Pago de cuota - ${movement.concepto}`,
+      fk_id_concepto: 3, // ID = 3 como especificado (concepto de pago de cuota)
       tipo: 'Ingreso',
       ingresos: amount,
-      observaciones: `Pago de cuota movimiento ${movementId}`,
+      observaciones: `Pago procesado por ${usuario.nombre} - Movimiento ${movementId}`,
       fk_id_usuario: usuario.id
     }
 

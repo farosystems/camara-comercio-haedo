@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Plus, FileText, DollarSign, AlertTriangle, TrendingUp, TrendingDown, Receipt, CreditCard, Search, ChevronLeft, ChevronRight, User } from "lucide-react"
+import { Plus, FileText, DollarSign, AlertTriangle, TrendingUp, TrendingDown, Receipt, CreditCard, Search, ChevronLeft, ChevronRight, User, XCircle } from "lucide-react"
 import {
   Socio,
   Factura,
@@ -44,6 +44,7 @@ export function AccountingModule() {
   const [cuentasTesoreria, setCuentasTesoreria] = useState<CuentaTesoreria[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [anulandoPago, setAnulandoPago] = useState<string | null>(null)
 
   // Estados para selección de socio
   const [selectedSocioId, setSelectedSocioId] = useState<number | null>(null)
@@ -68,30 +69,70 @@ export function AccountingModule() {
 
   // Cargar datos desde Supabase
   useEffect(() => {
-    async function cargarDatos() {
-      try {
-        setLoading(true)
-        const [accountsData, invoicesData, paymentsData, movementsData, cuentasTesoreriaData] = await Promise.all([
-          getSocios(),
-          getFacturas(),
-          getPagos(),
-          getMovimientosSocios(),
-          getCuentasTesoreria()
-        ])
-        setAccounts(accountsData)
-        setInvoices(invoicesData)
-        setPayments(paymentsData)
-        setMovements(movementsData)
-        setCuentasTesoreria(cuentasTesoreriaData)
-      } catch (err) {
-        console.error('Error cargando datos:', err)
-        setError('Error al cargar los datos')
-      } finally {
-        setLoading(false)
-      }
-    }
     cargarDatos()
   }, [])
+
+  const cargarDatos = async () => {
+    try {
+      setLoading(true)
+      const [accountsData, invoicesData, paymentsData, movementsData, cuentasTesoreriaData] = await Promise.all([
+        getSocios(),
+        getFacturas(),
+        getPagos(),
+        getMovimientosSocios(),
+        getCuentasTesoreria()
+      ])
+      setAccounts(accountsData)
+      setInvoices(invoicesData)
+      setPayments(paymentsData)
+      setMovements(movementsData)
+      setCuentasTesoreria(cuentasTesoreriaData)
+    } catch (err) {
+      console.error('Error cargando datos:', err)
+      setError('Error al cargar los datos')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAnularPago = async (pagoId: string) => {
+    if (!confirm('¿Estás seguro de que deseas anular este pago? Esta acción creará un movimiento de egreso en la caja y reactivará la cuota.')) {
+      return
+    }
+
+    try {
+      setAnulandoPago(pagoId)
+
+      const response = await fetch(`/api/pagos/anular/${pagoId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Error al anular el pago')
+      }
+
+      toast({
+        title: "Pago anulado",
+        description: "El pago ha sido anulado exitosamente y se ha creado el movimiento de caja correspondiente"
+      })
+
+      // Recargar datos
+      await cargarDatos()
+
+    } catch (error: any) {
+      console.error('Error anulando pago:', error)
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo anular el pago",
+        variant: "destructive"
+      })
+    } finally {
+      setAnulandoPago(null)
+    }
+  }
 
   if (loading) {
     return (
@@ -427,6 +468,7 @@ export function AccountingModule() {
                           <TableHead className="font-semibold">Método de Pago</TableHead>
                           <TableHead className="font-semibold">Cuota Pagada</TableHead>
                           <TableHead className="font-semibold">Referencia</TableHead>
+                          <TableHead className="font-semibold">Estado</TableHead>
                           <TableHead className="font-semibold">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -434,12 +476,13 @@ export function AccountingModule() {
                         {selectedSocioPayments.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()).map((payment) => {
                           const movimiento = payment.fk_id_movimiento ?
                             movements.find(m => m.id === payment.fk_id_movimiento) : null
+                          const estadoPago = payment.estado || 'Aceptado'
 
                           return (
-                            <TableRow key={payment.id}>
+                            <TableRow key={payment.id} className={estadoPago === 'Anulado' ? 'opacity-50' : ''}>
                               <TableCell className="font-medium">{payment.id}</TableCell>
                               <TableCell>{formatDateForDisplay(payment.fecha)}</TableCell>
-                              <TableCell className="font-medium text-green-600">
+                              <TableCell className={`font-medium ${estadoPago === 'Anulado' ? 'text-red-600 line-through' : 'text-green-600'}`}>
                                 ${payment.monto.toLocaleString()}
                               </TableCell>
                               <TableCell>
@@ -483,9 +526,35 @@ export function AccountingModule() {
                                 )}
                               </TableCell>
                               <TableCell>
-                                <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-800" title="Ver recibo">
-                                  <Receipt className="h-4 w-4" />
-                                </Button>
+                                <Badge
+                                  variant={estadoPago === 'Anulado' ? 'destructive' : 'default'}
+                                  className={estadoPago === 'Anulado' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}
+                                >
+                                  {estadoPago}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-2">
+                                  <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-800" title="Ver recibo">
+                                    <Receipt className="h-4 w-4" />
+                                  </Button>
+                                  {estadoPago !== 'Anulado' && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                                      title="Anular pago"
+                                      onClick={() => handleAnularPago(payment.id)}
+                                      disabled={anulandoPago === payment.id}
+                                    >
+                                      {anulandoPago === payment.id ? (
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                                      ) : (
+                                        <XCircle className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  )}
+                                </div>
                               </TableCell>
                             </TableRow>
                           )

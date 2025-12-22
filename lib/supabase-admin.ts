@@ -917,6 +917,7 @@ export interface Pago {
   fk_id_movimiento: number | null
   fk_id_cuenta_tesoreria: number | null
   referencia: string | null
+  estado: 'Aceptado' | 'Anulado'
   created_at: string
 }
 
