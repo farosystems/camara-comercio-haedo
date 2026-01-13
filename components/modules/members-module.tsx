@@ -66,6 +66,7 @@ export function MembersModule() {
   const [error, setError] = useState<string | null>(null)
   const [searchRazonSocial, setSearchRazonSocial] = useState("")
   const [searchNumero, setSearchNumero] = useState("")
+  const [searchCuit, setSearchCuit] = useState("")
   const [searchTipoSocio, setSearchTipoSocio] = useState("all")
   const [sortBy, setSortBy] = useState<'numero' | 'nombre_socio' | 'razon_social' | 'mail' | 'cuit' | 'tipo_socio' | 'fecha_alta' | 'fecha_baja'>('numero')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
@@ -1034,6 +1035,19 @@ export function MembersModule() {
                 className="border-gray-300 focus:border-gray-400"
               />
             </div>
+            <div className="w-56">
+              <Label htmlFor="search-cuit">Buscar por CUIT</Label>
+              <Input
+                id="search-cuit"
+                placeholder="Ingrese CUIT..."
+                value={searchCuit}
+                onChange={(e) => {
+                  setSearchCuit(e.target.value)
+                  setCurrentMembersPage(1) // Reset to first page when searching
+                }}
+                className="border-gray-300 focus:border-gray-400"
+              />
+            </div>
             <div className="w-48">
               <Label htmlFor="search-tipo-socio">Filtrar por Tipo de Socio</Label>
               <Select
@@ -1104,8 +1118,9 @@ export function MembersModule() {
                 .filter(member => {
                   const matchesNumero = searchNumero === "" || (member.nro_socio && member.nro_socio.includes(searchNumero))
                   const matchesRazonSocial = searchRazonSocial === "" || member.razon_social.toLowerCase().includes(searchRazonSocial.toLowerCase())
+                  const matchesCuit = searchCuit === "" || (member.cuit && member.cuit.includes(searchCuit))
                   const matchesTipoSocio = searchTipoSocio === "all" || searchTipoSocio === "" || member.tipo_socio === searchTipoSocio
-                  return matchesNumero && matchesRazonSocial && matchesTipoSocio
+                  return matchesNumero && matchesRazonSocial && matchesCuit && matchesTipoSocio
                 })
                 .sort((a, b) => {
                   let compareValue = 0

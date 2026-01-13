@@ -51,6 +51,7 @@ export function MovementsBillingModule() {
   // Estados para filtros
   const [memberSearch, setMemberSearch] = useState("")
   const [socioIdSearch, setSocioIdSearch] = useState("")
+  const [cuitSearch, setCuitSearch] = useState("")
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
 
@@ -192,12 +193,14 @@ export function MovementsBillingModule() {
 
   // Filtrar movimientos según los criterios seleccionados
   const filteredMovements = movements.filter(movement => {
-    // Filtro por socio (búsqueda por razón social o número de socio)
+    // Filtro por socio (búsqueda por razón social, número de socio y CUIT)
     const member = members.find(m => m.id === movement.fk_id_socio)
     const memberName = member?.razon_social || ''
+    const memberCuit = member?.cuit || ''
     const matchesMemberName = memberSearch === "" || memberName.toLowerCase().includes(memberSearch.toLowerCase())
     const matchesSocioId = socioIdSearch === "" || (member?.nro_socio && member.nro_socio.includes(socioIdSearch))
-    const matchesMember = matchesMemberName && matchesSocioId
+    const matchesCuit = cuitSearch === "" || memberCuit.includes(cuitSearch)
+    const matchesMember = matchesMemberName && matchesSocioId && matchesCuit
 
     // Filtro por concepto
     if (filtroConcepto !== 0 && movement.fk_id_cargo !== filtroConcepto) {
@@ -952,6 +955,18 @@ export function MovementsBillingModule() {
                     className="pl-8"
                   />
                 </div>
+              </div>
+              <div className="w-56">
+                <Label htmlFor="cuit-search">CUIT</Label>
+                <Input
+                  id="cuit-search"
+                  placeholder="CUIT..."
+                  value={cuitSearch}
+                  onChange={(e) => {
+                    setCuitSearch(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                />
               </div>
             </div>
 

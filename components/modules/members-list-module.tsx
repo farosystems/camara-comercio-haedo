@@ -46,6 +46,7 @@ export function MembersListModule() {
   const [error, setError] = useState<string | null>(null)
   const [searchRazonSocial, setSearchRazonSocial] = useState("")
   const [searchNumero, setSearchNumero] = useState("")
+  const [searchCuit, setSearchCuit] = useState("")
   const [searchTipoSocio, setSearchTipoSocio] = useState("all")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -303,8 +304,9 @@ export function MembersListModule() {
   const filteredMembers = members.filter(member => {
     const matchesNumero = searchNumero === "" || (member.nro_socio && member.nro_socio.includes(searchNumero))
     const matchesRazonSocial = searchRazonSocial === "" || member.razon_social.toLowerCase().includes(searchRazonSocial.toLowerCase())
+    const matchesCuit = searchCuit === "" || (member.cuit && member.cuit.includes(searchCuit))
     const matchesTipoSocio = searchTipoSocio === "all" || searchTipoSocio === "" || member.tipo_socio === searchTipoSocio
-    return matchesNumero && matchesRazonSocial && matchesTipoSocio
+    return matchesNumero && matchesRazonSocial && matchesCuit && matchesTipoSocio
   })
 
   const paginatedMembers = filteredMembers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
@@ -671,6 +673,19 @@ export function MembersListModule() {
                 value={searchRazonSocial}
                 onChange={(e) => {
                   setSearchRazonSocial(e.target.value)
+                  setCurrentPage(1)
+                }}
+                className="border-gray-300 focus:border-gray-400"
+              />
+            </div>
+            <div className="w-56">
+              <Label htmlFor="search-cuit">Buscar por CUIT</Label>
+              <Input
+                id="search-cuit"
+                placeholder="Ingrese CUIT..."
+                value={searchCuit}
+                onChange={(e) => {
+                  setSearchCuit(e.target.value)
                   setCurrentPage(1)
                 }}
                 className="border-gray-300 focus:border-gray-400"

@@ -509,7 +509,7 @@ export function AccountingModule() {
                                   <div>
                                     <div className="font-medium text-sm">{movimiento.concepto}</div>
                                     <div className="text-xs text-muted-foreground">
-                                      Cuota: {movimiento.comprobante}
+                                      Cuota: {movimiento.id}
                                     </div>
                                   </div>
                                 ) : (
