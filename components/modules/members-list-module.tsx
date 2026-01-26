@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Edit, User, Save, X, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
+import { Plus, Edit, User, Save, X, ArrowUpDown, ArrowUp, ArrowDown, Upload, FileSpreadsheet } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Socio, getSocios } from "@/lib/supabase-admin"
 import { supabase } from "@/lib/supabase"
@@ -52,9 +52,13 @@ export function MembersListModule() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [selectedMember, setSelectedMember] = useState<Socio | null>(null)
   const [activeTab, setActiveTab] = useState("identificacion")
   const [saving, setSaving] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importResults, setImportResults] = useState<any>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 15
   const { toast } = useToast()
@@ -119,6 +123,7 @@ export function MembersListModule() {
   useEffect(() => {
     cargarDatos()
   }, [])
+
 
   const handleInputChange = (field: string, value: string) => {
     setFormData({...formData, [field]: value.toUpperCase()})
@@ -356,6 +361,60 @@ export function MembersListModule() {
     return sortOrder === 'asc' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
   }
 
+  // Función para manejar la importación
+  const handleImport = async () => {
+    if (!importFile) {
+      toast({
+        title: "Error",
+        description: "Por favor selecciona un archivo",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setImporting(true)
+    setImportResults(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', importFile)
+
+      const response = await fetch('/api/socios/import', {
+        method: 'POST',
+        body: formData
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Error al importar')
+      }
+
+      setImportResults(result.results)
+
+      toast({
+        title: "Importación completada",
+        description: result.message,
+        variant: result.results.errors.length > 0 ? "default" : "default"
+      })
+
+      // Recargar datos si hubo éxitos
+      if (result.results.success > 0) {
+        await cargarDatos()
+      }
+
+    } catch (error: any) {
+      console.error('Error importando:', error)
+      toast({
+        title: "Error",
+        description: error.message || "Error al importar el archivo",
+        variant: "destructive"
+      })
+    } finally {
+      setImporting(false)
+    }
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -364,13 +423,112 @@ export function MembersListModule() {
           <h2 className="text-3xl font-bold tracking-tight">Gestión de Socios</h2>
           <p className="text-muted-foreground">Administra la información de los socios</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-black hover:bg-gray-800 text-white" onClick={resetForm}>
-              <Plus className="mr-2 h-4 w-4" />
-              Nuevo Socio
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="border-gray-300">
+                <Upload className="mr-2 h-4 w-4" />
+                Importar Excel
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl bg-white">
+              <DialogHeader>
+                <DialogTitle>Importar Socios desde Excel</DialogTitle>
+                <DialogDescription>
+                  Sube un archivo Excel (.xlsx) o CSV con los datos de los socios
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="import-file">Archivo Excel/CSV</Label>
+                  <Input
+                    id="import-file"
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        setImportFile(file)
+                        setImportResults(null)
+                      }
+                    }}
+                    className="mt-1"
+                  />
+                  <p className="text-sm text-muted-foreground mt-2">
+                    El archivo debe contener columnas como: nro_socio, nombre_socio, razon_social, domicilio_comercial, mail, cuit, etc.
+                  </p>
+                </div>
+
+                {importResults && (
+                  <div className="border rounded-lg p-4 space-y-2">
+                    <h3 className="font-semibold">Resultados de la Importación:</h3>
+                    <div className="space-y-1">
+                      <p className="text-sm">Total de registros: {importResults.total}</p>
+                      <p className="text-sm text-green-600">Importados exitosamente: {importResults.success}</p>
+                      <p className="text-sm text-red-600">Errores: {importResults.errors.length}</p>
+                    </div>
+
+                    {importResults.errors.length > 0 && (
+                      <div className="mt-4 max-h-60 overflow-y-auto">
+                        <h4 className="text-sm font-medium mb-2">Errores detallados:</h4>
+                        <div className="space-y-2">
+                          {importResults.errors.map((err: any, idx: number) => (
+                            <div key={idx} className="text-xs bg-red-50 p-2 rounded">
+                              <p className="font-medium">Fila {err.row}: {err.error}</p>
+                              {err.data && (
+                                <p className="text-muted-foreground mt-1">
+                                  {JSON.stringify(err.data).substring(0, 100)}...
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsImportDialogOpen(false)
+                      setImportFile(null)
+                      setImportResults(null)
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleImport}
+                    disabled={!importFile || importing}
+                    className="bg-black hover:bg-gray-800 text-white"
+                  >
+                    {importing ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Importando...
+                      </>
+                    ) : (
+                      <>
+                        <FileSpreadsheet className="mr-2 h-4 w-4" />
+                        Importar
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-black hover:bg-gray-800 text-white" onClick={resetForm}>
+                <Plus className="mr-2 h-4 w-4" />
+                Nuevo Socio
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white">
             <DialogHeader>
               <DialogTitle>Crear Nuevo Socio</DialogTitle>
@@ -642,6 +800,16 @@ export function MembersListModule() {
                   </div>
 
                   <div className="space-y-2">
+                    <Label htmlFor="fecha_baja">Fecha de Baja</Label>
+                    <Input
+                      id="fecha_baja"
+                      type="date"
+                      value={formData.fecha_baja}
+                      onChange={(e) => setFormData({...formData, fecha_baja: e.target.value})}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
                     <Label htmlFor="tipo_socio">Tipo de Socio</Label>
                     <Select
                       value={formData.tipo_socio}
@@ -687,6 +855,7 @@ export function MembersListModule() {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Tabla de socios */}
@@ -1176,6 +1345,26 @@ export function MembersListModule() {
                       <SelectItem value="Prospecto">Prospecto</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit_fecha_alta">Fecha de Alta</Label>
+                  <Input
+                    id="edit_fecha_alta"
+                    type="date"
+                    value={formData.fecha_alta}
+                    onChange={(e) => setFormData({...formData, fecha_alta: e.target.value})}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit_fecha_baja">Fecha de Baja</Label>
+                  <Input
+                    id="edit_fecha_baja"
+                    type="date"
+                    value={formData.fecha_baja}
+                    onChange={(e) => setFormData({...formData, fecha_baja: e.target.value})}
+                  />
                 </div>
               </div>
             </TabsContent>
