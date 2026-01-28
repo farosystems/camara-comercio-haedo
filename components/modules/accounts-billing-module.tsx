@@ -21,7 +21,8 @@ import {
   Calendar,
   AlertCircle,
   CheckCircle,
-  XCircle
+  XCircle,
+  Download
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { formatDateForDisplay } from "@/lib/date-utils"
@@ -61,6 +62,9 @@ export function AccountsBillingModule() {
 
   // Estado para generación de PDF de estado de cuenta
   const [isGeneratingAccountPDF, setIsGeneratingAccountPDF] = useState(false)
+
+  // Estado para exportación a Excel
+  const [isExportingExcel, setIsExportingExcel] = useState(false)
 
   // Estados para modal de envío de email de estado de cuenta
   const [isAccountEmailModalOpen, setIsAccountEmailModalOpen] = useState(false)
@@ -471,6 +475,85 @@ export function AccountsBillingModule() {
     }
   }
 
+  const handleExportToExcel = async () => {
+    setIsExportingExcel(true)
+
+    try {
+      // Importación dinámica de XLSX
+      const XLSX = await import('xlsx')
+
+      // Preparar datos para exportar
+      const dataToExport = filteredMembers.map((member) => {
+        const memberMovements = movements.filter(m => m.fk_id_socio === member.id)
+        const pendingAndOverdueMovements = memberMovements.filter(m => m.estado === 'Pendiente' || m.estado === 'Vencida')
+        const currentBalance = pendingAndOverdueMovements.reduce((sum, m) => sum + (m.saldo || 0), 0)
+        const overdueMovements = memberMovements.filter(m => m.estado === "Vencida")
+        const totalCharges = memberMovements.filter(m => m.tipo === "Cargo").reduce((sum, m) => sum + m.monto, 0)
+        const memberPagos = pagos.filter(p => p.fk_id_socio === member.id)
+        const totalPayments = memberPagos.reduce((sum, p) => sum + p.monto, 0)
+
+        return {
+          'Nro Socio': member.nro_socio || 'N/A',
+          'Razón Social': member.razon_social,
+          'CUIT': member.cuit,
+          'Email': member.mail,
+          'Teléfono': member.telefono_comercial || 'N/A',
+          'Tipo de Socio': member.tipo_socio,
+          'Saldo Actual': currentBalance,
+          'Total Cargos': totalCharges,
+          'Total Pagos': totalPayments,
+          'Cuotas Vencidas': overdueMovements.length,
+          'Monto Vencido': overdueMovements.reduce((sum, m) => sum + m.saldo, 0),
+          'Estado': currentBalance === 0 ? 'Al día' : currentBalance > 0 ? 'Deudor' : 'A favor',
+          'Dirección': member.domicilio_comercial || 'N/A'
+        }
+      })
+
+      // Crear libro de trabajo
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Estado de Socios')
+
+      // Ajustar ancho de columnas
+      const columnWidths = [
+        { wch: 12 },  // Nro Socio
+        { wch: 30 },  // Razón Social
+        { wch: 15 },  // CUIT
+        { wch: 30 },  // Email
+        { wch: 15 },  // Teléfono
+        { wch: 15 },  // Tipo de Socio
+        { wch: 15 },  // Saldo Actual
+        { wch: 15 },  // Total Cargos
+        { wch: 15 },  // Total Pagos
+        { wch: 15 },  // Cuotas Vencidas
+        { wch: 15 },  // Monto Vencido
+        { wch: 12 },  // Estado
+        { wch: 40 }   // Dirección
+      ]
+      worksheet['!cols'] = columnWidths
+
+      // Generar archivo
+      const fileName = `estado_socios_${new Date().toISOString().split('T')[0]}.xlsx`
+      XLSX.writeFile(workbook, fileName)
+
+      toast({
+        title: "Exportación exitosa",
+        description: `Se exportaron ${dataToExport.length} registros a Excel`,
+        variant: "default",
+      })
+
+    } catch (error) {
+      console.error('Error exportando a Excel:', error)
+      toast({
+        title: "Error",
+        description: "No se pudo exportar a Excel",
+        variant: "destructive",
+      })
+    } finally {
+      setIsExportingExcel(false)
+    }
+  }
+
   const handleSendAccountEmail = async () => {
     if (!selectedMemberForAccountEmail || !accountEmailSender || !accountEmailRecipient) {
       toast({
@@ -549,6 +632,24 @@ export function AccountsBillingModule() {
             Saldo actual y estado de cada socio
           </p>
         </div>
+        <Button
+          variant="outline"
+          className="border-gray-300"
+          onClick={handleExportToExcel}
+          disabled={isExportingExcel || loading}
+        >
+          {isExportingExcel ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+              Exportando...
+            </>
+          ) : (
+            <>
+              <Download className="mr-2 h-4 w-4" />
+              Exportar a Excel
+            </>
+          )}
+        </Button>
       </div>
 
       <Card>
