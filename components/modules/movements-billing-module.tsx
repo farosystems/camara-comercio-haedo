@@ -262,7 +262,8 @@ export function MovementsBillingModule() {
     }
 
     const matchesSearch = modalMemberSearch === "" ||
-      member.razon_social.toLowerCase().includes(modalMemberSearch.toLowerCase())
+      member.razon_social.toLowerCase().includes(modalMemberSearch.toLowerCase()) ||
+      (member.nro_socio && member.nro_socio.includes(modalMemberSearch))
 
     let matchesType = true
     if (memberTypeFilter !== "all") {
@@ -1331,7 +1332,7 @@ export function MovementsBillingModule() {
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="modal-member-search"
-                    placeholder="Buscar por razón social..."
+                    placeholder="Buscar por razón social o nro. socio..."
                     value={modalMemberSearch}
                     onChange={(e) => setModalMemberSearch(e.target.value)}
                     className="pl-8"
