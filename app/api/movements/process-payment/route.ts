@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase'
 import { getArgentinaDateString } from '@/lib/date-utils'
 import { currentUser } from '@clerk/nextjs/server'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest) {
   try {
     const user = await currentUser()
