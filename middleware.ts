@@ -2,7 +2,7 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 const isPublicRoute = createRouteMatcher(["/", "/sign-in(.*)", "/sign-up(.*)"]);
-const isIgnoredRoute = createRouteMatcher(["/api/webhook(.*)", "/api/permissions(.*)"]);
+const isIgnoredRoute = createRouteMatcher(["/api/webhook(.*)", "/api/permissions(.*)", "/api/debug(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
   const { userId } = await auth();

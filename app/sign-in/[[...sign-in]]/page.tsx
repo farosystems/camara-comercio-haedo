@@ -27,25 +27,43 @@ export default function SignInPage() {
     setIsLoading(true);
     setError("");
 
+    console.log("🔍 Iniciando proceso de login...");
+    console.log("Username:", username);
+    console.log("SignIn disponible:", !!signIn);
+
     if (!signIn) {
+      console.error("❌ signIn no está disponible");
       setError("Error de configuración del sistema");
       setIsLoading(false);
       return;
     }
 
     try {
+      console.log("📤 Enviando credenciales a Clerk...");
       const result = await signIn.create({
         identifier: username,
         password,
       });
 
+      console.log("📥 Respuesta de Clerk:", result);
+      console.log("Status:", result?.status);
+
       if (result?.status === "complete") {
+        console.log("✅ Login exitoso, activando sesión...");
         await setActive({ session: result.createdSessionId });
+        console.log("✅ Sesión activada, redirigiendo...");
         router.replace("/home");
+      } else if (result?.status === "needs_second_factor") {
+        console.warn("⚠️ Se requiere segundo factor de autenticación");
+        setError("Este usuario tiene habilitado 2FA. Por favor, deshabilitalo en Clerk Dashboard o implementá el flujo de 2FA.");
       } else {
+        console.warn("⚠️ Login no completado. Status:", result?.status);
+        console.warn("Result completo:", result);
         setError("Error al iniciar sesión. Verifica tus credenciales.");
       }
     } catch (err: any) {
+      console.error("❌ Error completo de Clerk:", err);
+      console.error("❌ Errores detallados:", err.errors);
       setError(err.errors?.[0]?.message || "Error al iniciar sesión");
     } finally {
       setIsLoading(false);
